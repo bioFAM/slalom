@@ -12,6 +12,27 @@ import scipy as SP
 import pylab as PL
 import pdb
 import core.sparseFAard as sparseFA
+from matplotlib import pyplot as plt
+
+def plot_heatMap(FA,thre=10, row_labels=None):        
+    thre=10
+    data=SP.corrcoef(FA.S.E1[:,FA.Alpha.E1<thre].transpose())
+    fig, ax = plt.subplots()
+    heatmap = ax.pcolor(data,  vmin=-1., vmax=1.)
+#    plt.colorbar(fig)
+    # put the major ticks at the middle of each cell
+    ax.set_xticks(SP.arange(data.shape[0])+0.5, minor=False)
+    ax.set_yticks(SP.arange(data.shape[1])+0.5, minor=False)
+    
+    # want a more natural, table-like display
+    ax.invert_yaxis()
+    ax.xaxis.tick_top()
+    if row_labels!=None:
+        ax.set_xticklabels(row_labels, minor=False, rotation=75)
+        ax.set_yticklabels(row_labels, minor=False)
+    plt.show()
+
+def trainFA()
 
 if __name__ == '__main__':
     #1. load data
@@ -43,17 +64,58 @@ if __name__ == '__main__':
     #prior on noise level 
     priors = {'Eps': {'priors':[1,100]}}
     #how to initialize network?
-    initType = 'pca'
+    initType = 'prior'
     FAtrue = sparseFA.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=nIterations,permutation_move=permutation_move,priors=priors,initType=initType)
 
     FAtrue.init(**init)
     #FA.S.E1 = Sinit
-    FAtrue.iterate()
+    FAtrue.iterate(tolerance=1e-3)
     boundTrue = FAtrue.calcBound()
     
     alphaTrue = FAtrue.Alpha.E1
     print alphaTrue
+
+    #plot
+    thre=10
     
+    row_labels = terms[alphaTrue<thre]
+    plot_heatMap(FAtrue,thre=10,row_labels=row_labels)
+    
+    
+    #recursively eliminate factors
+    #start with the one with hightst alpha
+    FAlist = list()
+    termsList = list()    
+    boundList = list()
+    tol=1e-3
+    minFac=3    
+    FAold = FAtrue
+    boundOld = FAold._bound
+    alphaOld = FAold.Alpha.E1
+    termsOld = terms
+    deltaBound=tol
+    while(len(alphaOld>minFac) and deltaBound>=tol):    
+        inds = SP.setdiff1d(range(len(alphaOld)),SP.argmax(alphaOld))#SP.array([1,9])
+        permutation_move = False
+        init_factors = {}
+        init_factors['S'] = FAold.S.E1[:,inds]
+        init_factors['W'] = FAold.W.E1[:,inds]
+        init2={'init_data':sparseFA.CGauss(Y),'Pi':pi[:,inds], 'init_factors':init_factors}
+        init_type = 'pca'
+        FAcurr = sparseFA.CSparseFA(components=len(inds),sigmaOff=sigmaOff,sigmaOn=SP.ones(len(inds))*1.0, sparsity=sparsity,nIterations=nIterations,permutation_move=permutation_move,priors=priors,initType=initType)    
+        FAcurr.init(**init2)
+        FAcurr.iterate(tolerance=1e-5)
+        deltaBound = FAcurr._bound-boundOld
+        FAold = FAcurr
+        boundOld = FAcurr._bound
+        alphaOld = FAcurr.Alpha.E1
+        termsOld = termsOld[inds]
+        FAlist.append(FAold)
+        termsList.append(termsOld)
+        boundList.append(boundOld)
+        print termsOld[SP.argsort(alphaOld)]
+        
+ 
 #    #do permutations
 #    Non = FAtrue.Non
 #    Nperm = 20

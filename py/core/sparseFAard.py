@@ -581,7 +581,8 @@ class CSparseFA(AExpressionModule):
             Zd = self.Z.E1-Zr
             error = (Zd**2).mean()
             self.calcBound()
-            print "reconstruction error: %f lower bound: %f" % (error,  self._bound) 
+            if SP.mod(iter,250)==0:
+                print "reconstruction error: %f lower bound: %f" % (error,  self._bound) 
 
             if (abs(LB - self._bound) < tolerance) and not forceIterations and iter>minIterations:
                 print 'Converged after %i iterations' % (iter)

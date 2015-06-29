@@ -58,7 +58,7 @@ if __name__ == '__main__':
     init={'init_data':sparseFA.CGauss(Y),'Pi':pi}
     sigmaOff = 1E-5
     sparsity = 'VB'
-    nIterations = 2000
+    nIterations = 3000
     #permutation move
     permutation_move = False
     #prior on noise level 
@@ -89,12 +89,19 @@ if __name__ == '__main__':
     boundList = list()
     tol=1e-3
     minFac=3    
-    FAold = FAtrue
-    boundOld = FAold._bound
-    alphaOld = FAold.Alpha.E1
+    FAcurr = FAtrue
     termsOld = terms
+    inds = range(len(terms))
     deltaBound=tol
-    while(len(alphaOld>minFac) and deltaBound>=tol):    
+    while(len(alphaOld>minFac) and deltaBound>=tol):
+        FAold = FAcurr
+        boundOld = FAcurr._bound
+        alphaOld = FAcurr.Alpha.E1
+        termsOld = termsOld[inds]
+        FAlist.append(FAold)
+        termsList.append(termsOld)
+        boundList.append(boundOld)
+        print termsOld[SP.argsort(alphaOld)]        
         inds = SP.setdiff1d(range(len(alphaOld)),SP.argmax(alphaOld))#SP.array([1,9])
         permutation_move = False
         init_factors = {}
@@ -104,16 +111,10 @@ if __name__ == '__main__':
         init_type = 'pca'
         FAcurr = sparseFA.CSparseFA(components=len(inds),sigmaOff=sigmaOff,sigmaOn=SP.ones(len(inds))*1.0, sparsity=sparsity,nIterations=nIterations,permutation_move=permutation_move,priors=priors,initType=initType)    
         FAcurr.init(**init2)
-        FAcurr.iterate(tolerance=1e-5)
+        FAcurr.iterate(tolerance=1e-10)
         deltaBound = FAcurr._bound-boundOld
-        FAold = FAcurr
-        boundOld = FAcurr._bound
-        alphaOld = FAcurr.Alpha.E1
-        termsOld = termsOld[inds]
-        FAlist.append(FAold)
-        termsList.append(termsOld)
-        boundList.append(boundOld)
-        print termsOld[SP.argsort(alphaOld)]
+        print '%i iterations completed.' % (iter)
+
         
  
 #    #do permutations

@@ -52,11 +52,11 @@ class CNodeWsparse(CNodeW):
         #create indicator arrays for moment calculation
         self.Pi = zeros([net.Pi.shape[0],net.Pi.shape[1],2])
         self.Pi[:,:,1] =net.Pi
-        self.Pi[:,:,0] = 1-net.Pi
+        self.Pi[:,:,0] = 1.-net.Pi
         self.prec = S.hstack([net.sigmaOff**(-2),net.sigmaOn**(-2)])
         #log prior
-        self.lpC1 = log(net.Pi)
-        self.lpC0 = log(1-net.Pi)
+        self.lpC1 = log(net.Pi+1e-10)
+        self.lpC0 = log(1-net.Pi+1e-10)
         self.C    = self.Pi.copy()
         #labeling of factors in case we use permutation move
         self.Ilabel = SP.arange(net.components)
@@ -558,13 +558,14 @@ class CSparseFA(AExpressionModule):
         return name
 
 
-    def iterate(self, nIterations=None, forceIterations=None):
+    def iterate(self, nIterations=None, forceIterations=None, tolerance=None, minIterations=10):
         '''iterate(nIteations=None,forceIterations=None)
         - perform nIterations; per default(None) parameters are tken from local intsance settings
         '''
-        forceIterations=True
+        #forceIterations=True
         L.debug('SparseFA iterate')
                 
+        if tolerance is None: tolerance = self.tolerance
         if nIterations is None: nIterations = self.nIterations
         if forceIterations is None: forceIterations = self.forceIterations
         LB = 0
@@ -579,11 +580,11 @@ class CSparseFA(AExpressionModule):
             Zr = S.dot(self.S.E1,self.W.E1.T)
             Zd = self.Z.E1-Zr
             error = (Zd**2).mean()
-            print "reconstruction error: %f" % (error)
-            
+            self.calcBound()
+            print "reconstruction error: %f lower bound: %f" % (error,  self._bound) 
 
-            if (abs(LB - self._bound) < self.tolerance) and not forceIterations:
-                L.info('Converged')
+            if (abs(LB - self._bound) < tolerance) and not forceIterations and iter>minIterations:
+                print 'Converged after %i iterations' % (iter)
                 break
 
             L.info("Iteration %d: time=%.2f bound=%f" % (iter,time.time() - t, self._bound))

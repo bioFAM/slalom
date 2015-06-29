@@ -287,7 +287,7 @@ class ABayesNet(ANode):
         - return a dictionary with defaultparameters of the BayesNet class'''
         dp = {}
         dp['nIterations'] = 1
-        dp['tolerance']   = 1E-3
+        dp['tolerance']   = 1E-4
         dp['forceIterations'] = False
         dp['schedule'] = []
         return dp

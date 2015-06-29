@@ -32,7 +32,7 @@ def plot_heatMap(FA,thre=10, row_labels=None):
         ax.set_yticklabels(row_labels, minor=False)
     plt.show()
 
-def trainFA()
+
 
 if __name__ == '__main__':
     #1. load data
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     init={'init_data':sparseFA.CGauss(Y),'Pi':pi}
     sigmaOff = 1E-5
     sparsity = 'VB'
-    nIterations = 3000
+    nIterations = 301
     #permutation move
     permutation_move = False
     #prior on noise level 
@@ -90,19 +90,22 @@ if __name__ == '__main__':
     tol=1e-3
     minFac=3    
     FAcurr = FAtrue
-    termsOld = terms
+    alpha_ = FAcurr.Alpha.E1
+    terms_ = terms
     inds = range(len(terms))
     deltaBound=tol
-    while(len(alphaOld>minFac) and deltaBound>=tol):
+    numF = 0
+    while(len(alpha_)>minFac and deltaBound>=tol):
         FAold = FAcurr
-        boundOld = FAcurr._bound
-        alphaOld = FAcurr.Alpha.E1
-        termsOld = termsOld[inds]
+        bound_ = FAcurr._bound
+        alpha_ = FAcurr.Alpha.E1
+        terms_ = terms_[inds]
         FAlist.append(FAold)
-        termsList.append(termsOld)
-        boundList.append(boundOld)
-        print termsOld[SP.argsort(alphaOld)]        
-        inds = SP.setdiff1d(range(len(alphaOld)),SP.argmax(alphaOld))#SP.array([1,9])
+        termsList.append(terms_)
+        boundList.append(bound_)
+        print terms_[SP.argsort(alpha_)]  
+        
+        inds = SP.setdiff1d(range(len(alpha_)),SP.argmax(alpha_))#SP.array([1,9])
         permutation_move = False
         init_factors = {}
         init_factors['S'] = FAold.S.E1[:,inds]
@@ -112,8 +115,9 @@ if __name__ == '__main__':
         FAcurr = sparseFA.CSparseFA(components=len(inds),sigmaOff=sigmaOff,sigmaOn=SP.ones(len(inds))*1.0, sparsity=sparsity,nIterations=nIterations,permutation_move=permutation_move,priors=priors,initType=initType)    
         FAcurr.init(**init2)
         FAcurr.iterate(tolerance=1e-10)
-        deltaBound = FAcurr._bound-boundOld
-        print '%i iterations completed.' % (iter)
+        deltaBound = FAcurr._bound - bound_
+        numF+=1
+        print '%i factors excluded.' % (numF)
 
         
  

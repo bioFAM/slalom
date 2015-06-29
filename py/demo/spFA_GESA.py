@@ -13,13 +13,7 @@ import pylab as PL
 import pdb
 import core.sparseFAard as sparseFA
 
-python_cmd = 'python'
-nthreads = 1
-mem_thread = 10000
-cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d,tmp=10000]" -M %d -o ./cluster_out' % (nthreads,mem_thread,mem_thread)
-
 if __name__ == '__main__':
-    if 'cluster' in sys.argv:
     #1. load data
     terms = SP.loadtxt('../../R/terms_GESA.txt', dtype='str', skiprows=1)
     Y = SP.loadtxt('Ystd_hscGESA_sfMmus.csv')
@@ -60,32 +54,32 @@ if __name__ == '__main__':
     alphaTrue = FAtrue.Alpha.E1
     print alphaTrue
     
-    #do permutations
-    Non = FAtrue.Non
-    Nperm = 20
-    piRand = list()
-    alphaRand = list()
-    boundRand = list()
-        
-    
-    for r in range(20):
-        piRand_ = SP.zeros(pi.shape)
-        indRand_ = SP.array([SP.random.choice(range(pi.shape[1]),Non[i], replace=False) for i in range(len(Non))])
-        for k in range(pi.shape[0]):
-            piRand_[indRand_[k],k] = 1
-        piRand.append(piRand_)
-        init={'init_data':sparseFA.CGauss(Y),'Pi':piRand_}
-        FArand_ = sparseFA.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(piRand_.shape[1])*1.0,sparsity=sparsity,nIterations=nIterations,permutation_move=permutation_move,priors=priors,initType=initType)
-    
-        FArand_.init(**init)
-        #FA.S.E1 = Sinit
-        FArand_.iterate()
-        print r 'folds finished'
-        boundRand.append(FArand_.calcBound())
-        
-        alphaRand.append(FArand_.Alpha.E1)
-        
-    
-    
-
-
+#    #do permutations
+#    Non = FAtrue.Non
+#    Nperm = 20
+#    piRand = list()
+#    alphaRand = list()
+#    boundRand = list()
+#        
+#    
+#    for r in range(20):
+#        piRand_ = SP.zeros(pi.shape)
+#        indRand_ = SP.array([SP.random.choice(range(pi.shape[1]),Non[i], replace=False) for i in range(len(Non))])
+#        for k in range(pi.shape[0]):
+#            piRand_[indRand_[k],k] = 1
+#        piRand.append(piRand_)
+#        init={'init_data':sparseFA.CGauss(Y),'Pi':piRand_}
+#        FArand_ = sparseFA.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(piRand_.shape[1])*1.0,sparsity=sparsity,nIterations=nIterations,permutation_move=permutation_move,priors=priors,initType=initType)
+#    
+#        FArand_.init(**init)
+#        #FA.S.E1 = Sinit
+#        FArand_.iterate()
+#        print r 'folds finished'
+#        boundRand.append(FArand_.calcBound())
+#        
+#        alphaRand.append(FArand_.Alpha.E1)
+#        
+#    
+#    
+#
+#

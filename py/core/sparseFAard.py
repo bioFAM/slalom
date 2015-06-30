@@ -660,9 +660,9 @@ class CSparseFA(AExpressionModule):
                 v = s0.std(axis=0)
                 s0 /= v;
                 w0 *= v;
-            self.S.E1[:,k] = s0.ravel()
-            self.W.E1[Ion[:,k],k] = w0.ravel()
-            self.W.E1[~Ion[:,k],k]*=self.sigmaOff
+                self.S.E1[:,k] = s0.ravel()
+                self.W.E1[Ion[:,k],k] = w0.ravel()
+                self.W.E1[~Ion[:,k],k]*=self.sigmaOff
         elif self.initType == 'greedy':
             self.S.E1 = random.randn(self._N,self.components)
             self.W.E1 = random.randn(self._D,self.components)
@@ -675,7 +675,7 @@ class CSparseFA(AExpressionModule):
             Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.Pi
             self.W.E1[~Ion]*=self.sigmaOff
             for k in range(Ion.shape[1]):
-                self.W.E1[Ion[:,k]]*=self.sigmaOn[k]
+                self.W.E1[Ion[:,k],k]*=self.sigmaOn[k]
         elif self.initType == 'on':
             for k in range(Ion.shape[1]):
                 self.W.E1[:,k]*=self.sigmaOn[k]

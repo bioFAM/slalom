@@ -680,8 +680,8 @@ class CSparseFA(AExpressionModule):
             for k in range(Ion.shape[1]):
                 self.W.E1[:,k]*=self.sigmaOn[k]
         elif self.initType == 'data':
-            assert ('S' in keys(init_factors))
-            assert ('W' in keys(init_factors))
+            assert ('S' in init_factors.keys())
+            assert ('W' in init_factors.keys())
 #            Ion = init_factors['Ion']
             Sinit = init_factors['S']
             Winit = init_factors['W']

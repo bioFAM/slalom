@@ -4,11 +4,16 @@
 
 import sys
 sys.path.append('./..')
+scLVM_BASE = '../../../scLVM/'
+sys.path.insert(1,scLVM_BASE)
+sys.path.insert(2, scLVM_BASE +'..')
 import scipy as SP
 import numpy.random as random
 import core.sparseFAvem as sparseFA
 import scipy.io
 import os
+import matplotlib as mpl
+mpl.use('Agg')
 import pylab as plt
 import pdb
 import sys
@@ -29,7 +34,7 @@ cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d]" -M %d -o ./cluster
 
 if __name__ =='__main__':
     if 'cluster' in sys.argv:
-        nSim = 1        
+        nSim = 200        
         N = int(sys.argv[2])
         G = int(sys.argv[3])
 
@@ -93,13 +98,13 @@ if __name__ =='__main__':
             data_file['IonTerm'] = IonTerm
             data_file.close()
 
-            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
-            #cmd = '%s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
+            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
+            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
             print cmd            
             os.system(cmd)
             
-            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
-            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
             print cmd
             #cmd = '%s %s %s %s' % (python_cmd, sys.argv[0],fn,out_file)
             os.system(cmd)
@@ -117,9 +122,6 @@ if __name__ =='__main__':
         Y = data_file['Y'][:]
         Pi = data_file['Pi'][:]
         from sklearn.decomposition import RandomizedPCA
-        scLVM_BASE = '/Users/flo/projects/scLVM/'
-        sys.path.insert(1,scLVM_BASE)
-        sys.path.insert(2, scLVM_BASE +'..')
         from scLVM import scLVM
      
         IonPi = Pi>.5
@@ -158,7 +160,7 @@ if __name__ =='__main__':
         init={'init_data':sparseFA.CGauss(Y),'Pi':Pi}
         sigmaOff = 1E-5
         sparsity = 'VB'
-        nIterations = 100
+        nIterations = 5000
         #permutation move
         permutation_move = False
         #prior on noise level 

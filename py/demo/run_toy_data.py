@@ -4,7 +4,8 @@
 
 import sys
 sys.path.append('./..')
-scLVM_BASE = '../../../scLVM/'
+scLVM_BASE = '../../../../scLVM/'
+#scLVM_BASE = '../../../scLVM/'
 sys.path.insert(1,scLVM_BASE)
 sys.path.insert(2, scLVM_BASE +'..')
 import scipy as SP
@@ -20,6 +21,8 @@ import sys
 import os
 import h5py
 import cPickle as pickle
+import glob
+from sklearn.metrics import roc_curve, auc
 
 python_cmd = 'python'
 # settings
@@ -113,7 +116,37 @@ if __name__ =='__main__':
         
         
     elif 'collect' in sys.argv:
-        pass
+        dir_name_out = sys.argv[2]
+        DL = glob.glob(dir_name_out)
+        for root, dirs, files in os.walk(dir_name_out):
+            for dir_i in dirs:
+                dfile = h5py.File(os.path.join(dir_name_out,dir_i, 'data.h5py'),'r')
+                scLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_scLVM.h5py'),'r')
+                sscLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_sscLVM.h5py'),'r')
+
+                idxOn = dfile['IonTerm'][:]
+                metrics = ['varCompMean','var','alpha','rel_contrib']     
+                aucList = []
+                fprList = []
+                tprList = []
+                cnt = 0
+                for metric in metrics:
+                    if cnt<2:
+                        metr = scLVMfile[metric][:]
+                    else:
+                        metr = sscLVMfile[metric][:]
+                             
+                    isOn = SP.zeros((len(metr)))
+                    isOn[idxOn] = 1.0
+                    
+                    fpr, tpr, _ = roc_curve(metr, isOn)
+                    fprList.append(fpr)
+                    tprList.append(tpr)
+                    aucList.append(auc(fpr, tpr))
+                    cnt+=1
+        
+            
+
         
         
     elif 'scLVM' in sys.argv:

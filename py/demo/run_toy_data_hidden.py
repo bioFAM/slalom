@@ -4,8 +4,8 @@
 
 import sys
 sys.path.append('./..')
-scLVM_BASE = '../../../../scLVM/'
-#scLVM_BASE = '../../../scLVM/'
+#scLVM_BASE = '../../../../scLVM/'
+scLVM_BASE = '../../../scLVM/'
 sys.path.insert(1,scLVM_BASE)
 sys.path.insert(2, scLVM_BASE +'..')
 import scipy as SP
@@ -29,8 +29,8 @@ python_cmd = 'python'
 # settings
 nthreads = 1
 sleep = 0
-mem_thread = 1000
-basename_out = './outSimRandHidden2'
+mem_thread = 600
+basename_out = './outSimRandHidden2FPTP'
 
 cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d]" -M %d -o ./cluster_out' % (nthreads,mem_thread,mem_thread)
 
@@ -38,7 +38,7 @@ cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d]" -M %d -o ./cluster
 
 if __name__ =='__main__':
     if 'cluster' in sys.argv:
-        nSim = 1        
+        nSim = 100        
         N = int(sys.argv[2])
         G = int(sys.argv[3])
 
@@ -82,7 +82,15 @@ if __name__ =='__main__':
             Pi  = SP.zeros(Ion.shape)
             Pi[Ion] = 1.-1E-2
             Pi[Ioff] = 1E-5
-
+            for k in range(Pi.shape[1]):
+		TP = SP.where(Pi[:,k]>.5)[0]
+		TN = SP.where(Pi[:,k]<.5)[0]
+                FP = SP.random.choice(TN, size = min([round(len(TN)*.01), 20]))
+                FN = SP.random.choice(TP, size = min([round(len(TP)*.01), 20]))
+                Pik = Pi[:,k]
+                Pik[FP] = 1.-1E-2
+                Pik[FN] = 1E-5
+                Pi[:,k] = Pik 
             #3. sample form pi true network    
                 
             Z = 1.0*Ion[:,(2*K):]        
@@ -122,6 +130,10 @@ if __name__ =='__main__':
             data_file['Pi'] = Pi
             data_file['X'] = X
             data_file['W'] = W
+            data_file['FN'] = FN
+            data_file['FP'] = FP
+            data_file['TN'] = TN
+            data_file['TP'] = TP
             data_file['Ion'] = Ion
             data_file['Xhidden'] = Xhidden
             data_file['WHidden'] = Whidden
@@ -130,13 +142,13 @@ if __name__ =='__main__':
             data_file['IonTerm'] = IonTerm
             data_file.close()
 
-            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
-            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
+            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
+            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
             print cmd            
-            os.system(cmd)
+            #os.system(cmd)
             
-            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
-            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
             print cmd
             #cmd = '%s %s %s %s' % (python_cmd, sys.argv[0],fn,out_file)
             os.system(cmd)
@@ -153,6 +165,8 @@ if __name__ =='__main__':
         aucDict = {}	
         metrDict = {}	
         isOnList = []
+        isWOnList = []
+        isOnList = []
         corrList = []
         corrPCList = []
         metrics = ['varCompMean','var','cv2','alpha','rel_contrib']     
@@ -167,10 +181,11 @@ if __name__ =='__main__':
                 dfile = h5py.File(os.path.join(dir_name_out,dir_i, 'data.h5py'),'r')
                 scLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_scLVM.h5py'),'r')
                 sscLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_sscLVM.h5py'),'r')
-
+                K = dfile['X'][:].shape[1]
                 Nhidden = dfile['Nhidden'][()]
                 idxOn = dfile['IonTerm'][:]-Nhidden
-                cnt = 0
+                    
+                cnt = 3
                 for metric in metrics:
                     if cnt<3:
                         metr = scLVMfile[metric][:]
@@ -181,7 +196,7 @@ if __name__ =='__main__':
                              
                     isOn = SP.zeros((len(metr)))
                     isOn[idxOn] = 1.0
-                    if cnt==0:
+                    if cnt==3:
                         isOnList.append(isOn)                        
                         _corr = []
                         _corrPC = []
@@ -248,7 +263,7 @@ if __name__ =='__main__':
             var[k] = SP.mean(SP.var(Y[:,IonPi[:,k]],1))
             
         sclvm = scLVM(Y,tech_noise=SP.ones((Y.shape[1]))*1e-20)
-        sclvm.varianceDecomposition(K=Klist,i0=0,i1=Y.shape[1])
+        sclvm.varianceDecomposition(K=Klist,i0=0,i1=Y.shape[1], maxiter=2)
         varComp = sclvm.getVarianceComponents()[0][:,:K]
         varCompMean = SP.mean(varComp,0)
         

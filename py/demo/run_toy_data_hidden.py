@@ -4,8 +4,8 @@
 
 import sys
 sys.path.append('./..')
-#scLVM_BASE = '../../../../scLVM/'
-scLVM_BASE = '../../../scLVM/'
+scLVM_BASE = '../../../../scLVM/'
+#scLVM_BASE = '../../../scLVM/'
 sys.path.insert(1,scLVM_BASE)
 sys.path.insert(2, scLVM_BASE +'..')
 import scipy as SP
@@ -130,13 +130,13 @@ if __name__ =='__main__':
             data_file['IonTerm'] = IonTerm
             data_file.close()
 
-            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
-            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
+            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
+            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
             print cmd            
             os.system(cmd)
             
-            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
-            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
             print cmd
             #cmd = '%s %s %s %s' % (python_cmd, sys.argv[0],fn,out_file)
             os.system(cmd)
@@ -165,13 +165,13 @@ if __name__ =='__main__':
         for root, dirs, files in os.walk(dir_name_out):
             for dir_i in dirs:
                 dfile = h5py.File(os.path.join(dir_name_out,dir_i, 'data.h5py'),'r')
-                #scLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_scLVM.h5py'),'r')
+                scLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_scLVM.h5py'),'r')
                 sscLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_sscLVM.h5py'),'r')
 
-                Nhidden = dfile['Nhidden'][:]
+                Nhidden = dfile['Nhidden'][()]
                 idxOn = dfile['IonTerm'][:]-Nhidden
                 cnt = 0
-                for metric in metrics[3:]:
+                for metric in metrics:
                     if cnt<3:
                         metr = scLVMfile[metric][:]
                     else:
@@ -184,13 +184,14 @@ if __name__ =='__main__':
                     if cnt==0:
                         isOnList.append(isOn)                        
                         _corr = []
+                        _corrPC = []
                         for i in range(len(idxOn)):
                             #_idx+=Nhidden
                             _corr.append(SP.corrcoef(sscLVMfile['S'][:][:,idxOn[i]+Nhidden], dfile['X'][:][:,i])[0,1])
-                            _corrPC.append(SP.corrcoef(scLVMfile['Xlist'][:][idxOn[i]], dfile['X'][:][:,i])[0,1])
+                            _corrPC.append(SP.corrcoef(scLVMfile['Xlist'][:][idxOn[i]].ravel(), dfile['X'][:][:,i])[0,1])
                         _corrHidden = abs(1-pairwise_distances( sscLVMfile['S'][:][:,:Nhidden].T,dfile['Xhidden'][:].T, metric='correlation'))
                         corrList.append(SP.hstack([SP.diag(_corrHidden[SP.argmax(_corrHidden,0)]),_corr]))
-                        corrPCList.append(_corrPC)
+                        corrPCList.append(SP.array(_corrPC))
                         
                     fpr, tpr, _ = roc_curve(isOn,metr)
                     fprDict[metric].append(fpr)
@@ -228,7 +229,7 @@ if __name__ =='__main__':
         out_file = h5py.File(os.path.join(sys.argv[3],'out_scLVM.h5py'),'w')
         Y = data_file['Y'][:]
         Pi = data_file['Pi'][:]
-        Nhidden = data_file['Nhidden'][:]
+        Nhidden = data_file['Nhidden'][()]
         from sklearn.decomposition import RandomizedPCA
         from scLVM import scLVM
      

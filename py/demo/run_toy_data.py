@@ -29,7 +29,7 @@ python_cmd = 'python'
 nthreads = 1
 sleep = 0
 mem_thread = 1000
-basename_out = './outSim'
+basename_out = './outSimRand'
 
 cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d]" -M %d -o ./cluster_out' % (nthreads,mem_thread,mem_thread)
 
@@ -37,7 +37,7 @@ cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d]" -M %d -o ./cluster
 
 if __name__ =='__main__':
     if 'cluster' in sys.argv:
-        nSim = 200        
+        nSim = 100        
         N = int(sys.argv[2])
         G = int(sys.argv[3])
 
@@ -64,11 +64,15 @@ if __name__ =='__main__':
             for k in range(K):
                 onk_ = random.rand(G,)<sparse[k]
                 Ion[:,k+K] = onk_
+
+            for k in range(K):
+                onk_ = random.rand(G,)<sparse[k]
+                Ion[:,k+2*K] = onk_
         
-            onany_ = SP.where(SP.sum(Ion[:,:K],1)>0)[0]        
-            for k in SP.arange(K):
-                idxon_ = random.choice(onany_, round(sparse[k]*G), replace=False)
-                Ion[idxon_,k+2*K] = True
+            #onany_ = SP.where(SP.sum(Ion[:,:K],1)>0)[0]        
+            #for k in SP.arange(K):
+            #    idxon_ = random.choice(onany_, round(sparse[k]*G), replace=False)
+            #    Ion[idxon_,k+2*K] = True
         
             Ion = (Ion>0)
             Ioff = ~Ion
@@ -118,6 +122,18 @@ if __name__ =='__main__':
     elif 'collect' in sys.argv:
         dir_name_out = sys.argv[2]
         DL = glob.glob(dir_name_out)
+        tprDict = {}
+        fprDict = {}
+        aucDict = {}	
+        metrDict = {}	
+        isOnList = []
+        metrics = ['varCompMean','var','cv2','alpha','rel_contrib']     
+        for metric in metrics:
+            fprDict[metric] = []
+            tprDict[metric] = []
+            aucDict[metric] = []
+            metrDict[metric] = []
+
         for root, dirs, files in os.walk(dir_name_out):
             for dir_i in dirs:
                 dfile = h5py.File(os.path.join(dir_name_out,dir_i, 'data.h5py'),'r')
@@ -125,27 +141,48 @@ if __name__ =='__main__':
                 sscLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_sscLVM.h5py'),'r')
 
                 idxOn = dfile['IonTerm'][:]
-                metrics = ['varCompMean','var','alpha','rel_contrib']     
-                aucList = []
-                fprList = []
-                tprList = []
                 cnt = 0
                 for metric in metrics:
-                    if cnt<2:
+                    if cnt<3:
                         metr = scLVMfile[metric][:]
                     else:
                         metr = sscLVMfile[metric][:]
+                    if metric=='alpha':
+                        metr=1.0/metr
                              
                     isOn = SP.zeros((len(metr)))
                     isOn[idxOn] = 1.0
-                    
-                    fpr, tpr, _ = roc_curve(metr, isOn)
-                    fprList.append(fpr)
-                    tprList.append(tpr)
-                    aucList.append(auc(fpr, tpr))
+                    if cnt==0:
+                        isOnList.append(isOn)
+
+                    fpr, tpr, _ = roc_curve(isOn,metr)
+                    fprDict[metric].append(fpr)
+                    tprDict[metric].append(tpr)
+                    metrDict[metric].append(metr)
+                    aucDict[metric].append(auc(fpr, tpr))
                     cnt+=1
-        
-            
+
+        aucDictAll = {} 
+        fprDictAll = {} 
+        tprDictAll = {} 
+        for metric in metrics:
+            fpr, tpr, _ = roc_curve(SP.hstack(isOnList),SP.hstack(metrDict[metric]))            
+            aucDictAll[metric] = auc(fpr, tpr)
+            tprDictAll[metric] = tpr 
+            fprDictAll[metric] = fpr
+        leg_str = list()
+        for metric in metrics: 
+            plt.plot(fprDictAll[metric], tprDictAll[metric], '-')
+            leg_str.append(metric+', AUC = '+str(SP.round_(aucDictAll[metric],3)))
+        plt.xlabel('FPR')
+        plt.ylabel('TPR')
+        plt.legend(leg_str, loc='lower-right')
+        ax = plt.gca()
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.get_xaxis().tick_bottom()
+        ax.get_yaxis().tick_left()
+        plt.savefig('./ROC_tes.pdf',bbox_inches='tight') 
 
         
         

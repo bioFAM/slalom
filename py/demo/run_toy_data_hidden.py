@@ -4,8 +4,8 @@
 
 import sys
 sys.path.append('./..')
-scLVM_BASE = '../../../../scLVM/'
-#scLVM_BASE = '../../../scLVM/'
+#scLVM_BASE = '../../../../scLVM/'
+scLVM_BASE = '../../../scLVM/'
 sys.path.insert(1,scLVM_BASE)
 sys.path.insert(2, scLVM_BASE +'..')
 import scipy as SP
@@ -30,7 +30,7 @@ python_cmd = 'python'
 nthreads = 1
 sleep = 0
 mem_thread = 1000
-basename_out = './outSimRand2'
+basename_out = './outSimRandHidden2'
 
 cluster_cmd = 'bsub -n %d -q research-rh6 -R "rusage[mem=%d]" -M %d -o ./cluster_out' % (nthreads,mem_thread,mem_thread)
 
@@ -130,13 +130,13 @@ if __name__ =='__main__':
             data_file['IonTerm'] = IonTerm
             data_file.close()
 
-            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
-            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
+            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'scLVM',in_file, out_dir)            
+            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'scLVM',in_file, out_dir)
             print cmd            
             os.system(cmd)
             
-            cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
-            #cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            #cmd = '%s %s %s %s %s' % (python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
+            cmd = '%s %s %s %s %s %s' % (cluster_cmd, python_cmd, sys.argv[0],'sscLVM',in_file,out_dir)
             print cmd
             #cmd = '%s %s %s %s' % (python_cmd, sys.argv[0],fn,out_file)
             os.system(cmd)
@@ -154,6 +154,7 @@ if __name__ =='__main__':
         metrDict = {}	
         isOnList = []
         corrList = []
+        corrPCList = []
         metrics = ['varCompMean','var','cv2','alpha','rel_contrib']     
         for metric in metrics:
             fprDict[metric] = []
@@ -172,7 +173,7 @@ if __name__ =='__main__':
                 cnt = 0
                 for metric in metrics[3:]:
                     if cnt<3:
-                        metr = scLVMfile[metric][:][Nhidden:]
+                        metr = scLVMfile[metric][:]
                     else:
                         metr = sscLVMfile[metric][:][Nhidden:]
                     if metric=='alpha':
@@ -186,8 +187,10 @@ if __name__ =='__main__':
                         for i in range(len(idxOn)):
                             #_idx+=Nhidden
                             _corr.append(SP.corrcoef(sscLVMfile['S'][:][:,idxOn[i]+Nhidden], dfile['X'][:][:,i])[0,1])
+                            _corrPC.append(SP.corrcoef(scLVMfile['Xlist'][:][idxOn[i]], dfile['X'][:][:,i])[0,1])
                         _corrHidden = abs(1-pairwise_distances( sscLVMfile['S'][:][:,:Nhidden].T,dfile['Xhidden'][:].T, metric='correlation'))
                         corrList.append(SP.hstack([SP.diag(_corrHidden[SP.argmax(_corrHidden,0)]),_corr]))
+                        corrPCList.append(_corrPC)
                         
                     fpr, tpr, _ = roc_curve(isOn,metr)
                     fprDict[metric].append(fpr)
@@ -225,17 +228,20 @@ if __name__ =='__main__':
         out_file = h5py.File(os.path.join(sys.argv[3],'out_scLVM.h5py'),'w')
         Y = data_file['Y'][:]
         Pi = data_file['Pi'][:]
+        Nhidden = data_file['Nhidden'][:]
         from sklearn.decomposition import RandomizedPCA
         from scLVM import scLVM
      
-        IonPi = Pi>.5
-        K = Pi.shape[1]
+        IonPi = (Pi>.5)[:,Nhidden:]
+        K = IonPi.shape[1]
         Klist = list()
+        Xlist = list()
         cv2 = SP.zeros((K))
         var = SP.zeros((K))
         for k in range(K):
             pca = RandomizedPCA(n_components=1)
             Xpc = pca.fit_transform(Y[:,IonPi[:,k]])                 
+            Xlist.append(Xpc)
             Klist.append(SP.dot(Xpc, Xpc.T))
             cv2[k] = SP.mean((SP.std(Y[:,IonPi[:,k]],1)/SP.mean(Y[:,IonPi[:,k]],1))**2)
             var[k] = SP.mean(SP.var(Y[:,IonPi[:,k]],1))
@@ -249,6 +255,7 @@ if __name__ =='__main__':
         out_file['varCompMean'] = varCompMean
         out_file['var'] = var
         out_file['cv2'] = cv2
+        out_file['Xlist'] = Xlist
         out_file.close()
         
         

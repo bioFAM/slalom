@@ -166,9 +166,12 @@ if __name__ =='__main__':
         metrDict = {}	
         isOnList = []
         isWOnList = []
+        infWOnList = []
         isOnList = []
         corrList = []
         corrPCList = []
+        
+        aucWList =  []
         metrics = ['varCompMean','var','cv2','alpha','rel_contrib']     
         for metric in metrics:
             fprDict[metric] = []
@@ -181,10 +184,17 @@ if __name__ =='__main__':
                 dfile = h5py.File(os.path.join(dir_name_out,dir_i, 'data.h5py'),'r')
                 scLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_scLVM.h5py'),'r')
                 sscLVMfile = h5py.File(os.path.join(dir_name_out,dir_i, 'out_sscLVM.h5py'),'r')
+                FAtrue = pickle.load(open(os.path.join(dir_name_out,dir_i, 'FA.pickle'),'r'))
                 K = dfile['X'][:].shape[1]
                 Nhidden = dfile['Nhidden'][()]
                 idxOn = dfile['IonTerm'][:]-Nhidden
-                    
+                isWon = SP.hstack(sscLVMfile['Ion'][:][:,idxOn])
+                infWon = SP.hstack(FAtrue.W.C[:,dfile['IonTerm'][:],0])
+                isWOnList.append(isWon)
+                infWOnList.append(infWon)
+                fpr, tpr, _ = roc_curve(isWon,infWon)
+                aucWList.append(auc(fpr, tpr))
+                                                                    
                 cnt = 3
                 for metric in metrics:
                     if cnt<3:
@@ -215,6 +225,10 @@ if __name__ =='__main__':
                     aucDict[metric].append(auc(fpr, tpr))
                     cnt+=1
 
+        
+        fpr, tpr, _ = roc_curve(SP.hstack(isWOnList),SP.hstack(infWOnList))            
+        print auc(fpr, tpr)        
+        
         aucDictAll = {} 
         fprDictAll = {} 
         tprDictAll = {} 

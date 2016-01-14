@@ -183,6 +183,7 @@ class CVBFA(AExpressionModule):
 
         # set dimensionality of the data
         [self._N, self._D] = self.Z.E1.shape
+        
 
         #add the new nodes - to be replaced by XML init:
         self.nodes = {'S':CNodeS(self),'W':CNodeW(self),'Eps':CNodeEps(self,self.priors['Eps']['priors']),'Alpha':CNodeAlpha(self,self.priors['Alpha']['priors'])}
@@ -206,7 +207,7 @@ class CVBFA(AExpressionModule):
             self.S.update()
             self.W.update()
             self.W.updateE2(self)
-            pass
+        self._K = net.W.E1.shape[1]
 
 
     def getName(self):

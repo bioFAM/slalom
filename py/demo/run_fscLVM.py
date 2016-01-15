@@ -65,21 +65,25 @@ if __name__ == '__main__':
         
    
     Y = dataFile['Yhet'][:].T
+
+    
     if dFile=='Tcell.hdf5':
         Y = SP.log10(dataFile['Yhet'][:].T+1)
     elif dFile=='zeisel_microgliaR.hdf5':
         Y = SP.log2(dataFile['Yhet'][:].T+1)
     
-    Y-=SP.mean(Y,0)
-    
+ 
     terms = terms[SP.sum(pi>.5,0)>minGenes]
     pi = pi[:,SP.sum(pi>.5,0)>minGenes]
     
+    print pi.shape
     if doFast==True:
         idx_genes  = SP.logical_and(SP.sum(pi>.5,1)>0, Y.mean(0)>0.)#SP.any(pi>.5,1)
         Y = Y[:,idx_genes]
         pi = pi[idx_genes,:]
-    
+
+    Y-=SP.mean(Y,0)
+   
      
     terms = SP.hstack([SP.repeat('hidden',nHidden), terms])
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])

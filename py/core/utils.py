@@ -51,6 +51,29 @@ def vcorrcoef(X,y):
     return r
 
  
+def getIlabel(order, Y, terms, pi,init_factors=None):
+    assert (order in ['preTrain', 'PCA'])
+
+    if order=='preTrain':
+        assert init_factors!=None
+        Ilabel = preTrain(Y, terms, pi,init_factors)
+        return Ilabel
+    else:
+        PCs = SP.zeros((Y.shape[0], pi.shape[1]))
+        for k in pi.shape[1]:
+            pca = PCA(n_components=1)
+            pca.fit_transform(Y[:,pi[:,k]>.5])
+            PCs[:,k] = pca.score[:,0]
+
+        X  = pca.fit_transform(Y)
+        nFix = (SP.where(terms=='hidden')[0]).min()+len(SP.where(terms=='hidden')[0])
+        MPC = abs(vcorrcoef(PCs.T,X.T))[nFix:]
+        IpiRev = SP.argsort(MPC.ravel())      
+        Ilabel = range(len(terms))
+        Ilabel[nFix:] = IpiRev+nFix
+        return Ilabel
+        
+
 def preTrain(Y, terms, pi,init_factors):
     K = pi.shape[1]
 

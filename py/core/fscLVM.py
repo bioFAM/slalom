@@ -88,20 +88,14 @@ class CSparseFA(AExpressionModule):
         dp = AExpressionModule.getDefaultParameters(self)
         dp['initType'] = 'pcaRand'
         dp['nIterations'] = 2000
-        #VB best
-        dp['schedule'] = ['W','S','Eps']
-#        #experiments(EP)
-        dp['schedule'] = ['Eps','S','W']
-        dp['schedule'] = ['W','S','Eps','Alpha']
+        dp['verbose'] = False
         dp['permutation_move'] = False
         dp['shuffle']=True
-        dp['components'] = 5
         dp['priors']     = {}
         dp['sigmaOff']   = 1E-3
+        dp['components'] = 40
         dp['sigmaOn']    = S.ones(dp['components'])*1.0
-        dp['sparsity']   = 'VB'
         dp['iterative']  = True
-        dp['randperm']   = False
         return dp
 
     def getName(self,base_name='sparseFA'):
@@ -117,16 +111,13 @@ class CSparseFA(AExpressionModule):
         L.debug('fscLVM iterate')                
         
         iter=0
-        if tolerance is None: tolerance = self.tolerance
+        if tolerance is None: tolerance = 1e-5
         if nIterations is None: nIterations = self.nIterations
         if forceIterations is None: forceIterations = self.forceIterations
         Ion = (self.W.C[:,:,0]>.5)*1.
         Zr = S.dot(self.S.E1,(self.W.E1.T*Ion.T))
         Zd = self.Z.E1-Zr
         error = (Zd**2).mean()
-        self.calcBound()
-        if SP.mod(iter,1)==0:
-            print "reconstruction error: %f lower bound: %f" % (error,  self._bound)
         errorOld = error
 
         for iter in range(nIterations):
@@ -147,8 +138,8 @@ class CSparseFA(AExpressionModule):
             Zd = self.Z.E1-Zr
             error = (Zd**2).mean()
 
-            if (SP.mod(iter,100)==0):
-                print "reconstruction error: %f lower bound: %f" % (error,  self._bound) 
+            if (SP.mod(iter,100)==0 and self.verbose==True):
+                print "reconstruction error: %f"  % error 
 
                 if (abs(errorOld - error) < tolerance) and not forceIterations and iter>minIterations:
                     print 'Converged after %i iterations' % (iter)
@@ -329,19 +320,6 @@ class CSparseFA(AExpressionModule):
             self.ZZ[d] = SP.sum(self.Z.E1[:,d]*self.Z.E1[:,d], 0)
         if self.Pi is not None:
             assert self.Pi.shape == (self._D,self.components)
-
-        #which approximation to use: EP/VB?
-        if self.sparsity=='EPV':
-            W_node = CNodeWsparseEPV(self)
-        elif self.sparsity=='EPVp':
-            W_node = CNodeWsparseEPV(self)
-            self.permutation_move = True
-        elif self.sparsity=='EP':
-            W_node = CNodeWsparseEP(self)
-        elif self.sparsity=='VB':
-            W_node = CNodeWsparseVB(self)
-        else:
-            W_node = CNodeW(self)
             
 #        self.nodes = {'S':CNodeS(self),'W':W_node,'Eps':CNodeEpsFix(self,self.priors['Eps']['priors'])}
         self.nodes = {'S':CNodeSsparse(self),'W':CNodeWsparseVB(self), 'Alpha':CNodeAlphasparse(self,self.priors['Alpha']['priors']),'Eps':CNodeEpsSparse(self,self.priors['Eps']['priors'])}

@@ -1,6 +1,6 @@
- # f-scLVM
-# variational sparse factor analysis model with spike and slab prior
-
+ # SparseFA
+# variational VB/EP sparse factor analysis model
+# this class implements either a standard variational inference procedure for a sparse model or a hybrid approach.
 
 from vbfa import *
 import scipy as SP
@@ -8,31 +8,55 @@ import scipy as SP
 #from mlib.plot import *
 import copy
 import pdb
+from sklearn import metrics
 from sklearn.decomposition import PCA
-
-def mad(X):
-    median = SP.median(X, axis=0)
-    return SP.median(abs(X-median), axis=0)
-    
-def vcorrcoef(X,y):
-    Xm = SP.reshape(SP.mean(X,axis=1),(X.shape[0],1))
-    ym = SP.mean(y)
-    r_num = SP.sum((X-Xm)*(y-ym),axis=1)
-    r_den = SP.sqrt(SP.sum((X-Xm)**2,axis=1)*SP.sum((y-ym)**2))
-    r = r_num/r_den
-    return r
 
 
 class CNodeAlphasparse(AGammaNode):
     def __init__(self,net,prior=[1E-3,1E-3]):
         AGammaNode.__init__(self,dim=[net.components],prior=prior)
         
-
+    def update(self,net):
+        W = net.W
+        #
+        #WmuWmuT = SP.zeros((Q,K,K))
+        #for q in range(Q):
+        #    WmuWmuT[q,:,:] = SP.dot(W.E1[q:q+1,:].transpose(), W.E1[q:q+1,:])
+        #pdb.set_trace()
+        #WmuWmuT = WmuWmuT.sum(axis=0)
+        Ewdwd = SP.sum(W.C[:,:,0]*W.E2diag,axis=0)
+        #self.a[:] = self.pa + 0.5*diag(Ewdwd+WmuWmuT)
+#        (sum( vardist.Gamma(:,m).*(vardist.muW(:,m).^2+vardist.sigma2W(:,m)) ))/2;
+        self.a[:] = self.pa + 0.5*Ewdwd
+        
+        self.b[:] = self.pb + SP.sum(W.C[:,:,0],axis=0)/2.0
+        #pdb.set_trace()
+        #update expectation values
+        AGammaNode.update(self)
 
 class CNodeEpsSparse(CNodeEps):
     """Extensions of CNodeEps that can handle fixed prior expectaitons"""
     def __init__(self,net,prior=S.array([100,1])):
             CNodeEps.__init__(self,net,prior)
+
+
+    def update(self,net):
+        M = net.components
+        SW_sigma  = net.W.C[:,:,0]*net.W.E1
+        SW2_sigma  = net.W.C[:,:,0]*net.W.E2diag
+        
+        muSTmuS = net.S.E1*net.S.E1  + net.S.diagSigmaS
+        muSTmuS = SP.dot(muSTmuS.transpose(),SP.ones((net._N,net._D)))
+        t1 = SP.sum(SW_sigma*SP.dot(net.Z.E1.transpose(),net.S.E1), 1)
+        t2 = SP.sum(SW2_sigma.transpose()* muSTmuS,0)
+        t3 = SP.zeros((net._D,))
+        for m in range(M):
+            for m1 in SP.arange(m+1,M):
+                tt = ( (net.W.C[:, m1,0]*net.W.E1[:, m1])*SW_sigma[:, m] )
+                t3 = t3 + tt*SP.dot((net.S.E1[:,m1]*net.S.E1[:,m]).transpose(),SP.ones((net._N,net._D)))
+
+        self.E1 = 1./((net.ZZ  + (-2*t1 + t2 + 2*t3))/net._N)
+      
                 
         
         
@@ -43,38 +67,67 @@ class CNodeSsparse(AVGaussNode):
         AVGaussNode.__init__(self,dim=[net._N,net.components],cdim=1)
         self.diagSigmaS = SP.ones((net._N,net.components))
 
-        
+    def update(self,net=None):
+        """update(net):
+        where net is the "base networ, i.e. sparseFA or similar"""
+        W     = net.W
+        M = net.components      
+        for m in xrange(M):       
+            SW_sigma = (W.C[:, m,0]*W.E1[:, m])*net.Eps.E1
+            SW2_sigma = (W.C[:, m,0]*(W.E2diag[:, m]))*net.Eps.E1   
+            alphaSm = SP.dot(SP.ones(net.Z.E1.shape),SW2_sigma)
+            setMinus = SP.int_(SP.hstack([range(M)[0:m],range(M)[m+1::]]))
+             
+            b0 = SP.dot(self.E1[:,setMinus],(W.C[:, setMinus,0]*W.E1[:, setMinus]).transpose())
+            b=SP.dot(b0,SW_sigma)
+            barmuS = SP.dot(net.Z.E1,SW_sigma) - b
+            self.diagSigmaS[:,m] = 1./(1 + alphaSm)     
+            self.E1[:,m] = barmuS/(1. + alphaSm)
+
+
 
 class CNodeWsparse(CNodeW):
     """Abstract CnodeWsparse basclass
     - this ensures consitent handling of alternative CNodeW nodes; in particular the sparsity prior
     - main application : permutation move of factors"""
-    def __init__(self,net,**kwargin):
-        #call base class initialisation
-        #CNodeW.__init__(self,net,**kwargin)
-        #create indicator arrays for moment calculation
-      
+    def __init__(self,net,**kwargin):      
         self.Pi = zeros([net.Pi.shape[0],net.Pi.shape[1],2])
         self.Pi[:,:,0] =net.Pi
         self.Pi[:,:,1] = 1.-net.Pi
-
+        self.lpC1 = log(net.Pi)
+        self.lpC0 = log(1-net.Pi)
 
         self.C    = self.Pi.copy()
-        #self.C[self.Pi>.8] = .9
-        #self.C[self.Pi<.1]= .1  
-        #labeling of factors in case we use permutation move
         self.Ilabel = SP.arange(net.components)
+
+    def update(self,net=None):
+        def logProbkk(k,l):
+            """evaluate the probability of C_k and Pi_l"""
+            pp = C[:,k,:]*Pi[:,l,:]
+            lpp = SP.log(pp.sum(axis=1))
+            return lpp.sum()
+
+        if (net is None) or (net.permutation_move==False): 
+            return
+        print "pong"
+        #do factor permutation if active
+        #use the marignal indicators to calculate this; I thik they contain all we need; however we need to divide out the prior
+
+        pass
+
+
+
         
-
-
-class CNodeWsparseVB(CNodeWsparse):
-    def __init__(self,net,prec=1):
+class CNodeWsparseVEM(CNodeWsparse):
+    def __init__(self,net,prec=1.):
         CNodeWsparse.__init__(self,net,prec=prec)
         #variable initialisation in CNodeWsparse
         self.sigma2 = (1.0/prec)*SP.ones((net._D, net.components))
         self.E1 = SP.randn(net._D, net.components)
         self.E2diag = SP.zeros((net._D, net.components))#is calculated in update for W
-        pass
+        #for d in range(net._D):
+        #    self.E2diag[d,:] = SP.diag(self.E2[d,:,:])   
+
 
 
 class CSparseFA(AExpressionModule):
@@ -87,20 +140,30 @@ class CSparseFA(AExpressionModule):
         #
         dp = AExpressionModule.getDefaultParameters(self)
         dp['initType'] = 'pcaRand'
-        dp['nIterations'] = 2000
-        dp['verbose'] = False
+        dp['nIterations'] = 500
         dp['permutation_move'] = False
         dp['shuffle']=True
+        dp['components'] = 5
         dp['priors']     = {}
-        dp['sigmaOff']   = 1E-3
-        dp['components'] = 40
+        dp['sigmaOff']   = 0.1
         dp['sigmaOn']    = S.ones(dp['components'])*1.0
-        dp['iterative']  = True
+        dp['sparsity']   = 'VEM'
+
         return dp
 
     def getName(self,base_name='sparseFA'):
         """return a name summarising the  main parameters"""
-        print "Not implemented yet"
+        sparsity = copy.copy(self.sparsity)
+        if sparsity=='EPV':
+            sparsity = 'VB/EP'
+        if self.permutation_move:
+            base_name = base_name + 'p'
+        sigma_str = '%.1e' % (self.sigmaOff**2)
+        exponent = sigma_str[4::]
+        sigma_str = "$\sigma^{2}_{0}=10^{%s}$"% (exponent)
+        #translate the sigma
+        name = "%s %s, %s" % (base_name,sparsity,sigma_str)
+        return name
 
 
     def iterate(self, nIterations=None, forceIterations=None, tolerance=None, minIterations=10):
@@ -108,47 +171,39 @@ class CSparseFA(AExpressionModule):
         - perform nIterations; per default(None) parameters are tken from local intsance settings
         '''
         #forceIterations=True
-        L.debug('fscLVM iterate')                
-        
+        L.debug('SparseFA iterate')
         iter=0
-        if tolerance is None: tolerance = 1e-5
+        if tolerance is None: tolerance = self.tolerance
         if nIterations is None: nIterations = self.nIterations
         if forceIterations is None: forceIterations = self.forceIterations
         Ion = (self.W.C[:,:,0]>.5)*1.
         Zr = S.dot(self.S.E1,(self.W.E1.T*Ion.T))
         Zd = self.Z.E1-Zr
         error = (Zd**2).mean()
-        errorOld = error
+        self.calcBound()
+        if SP.mod(iter,1)==0:
+            print "reconstruction error: %f lower bound: %f" % (error,  self._bound)
+        LB = 0
 
         for iter in range(nIterations):
-            #self.iterationCount+=1
-            t = time.time();
-            #for node in self.schedule:
-            #    self.updateNode(node)
-                #pdb.set_trace()
-            self.update()
-            if self.permutation_move==True:
-                #greedily select factors
-                print "Not implemented for this model"
-
-              
+            self.update()                
             self.iterationCount+=1
             #calc reconstruction error
             Zr = S.dot(self.S.E1,self.W.E1.T)
             Zd = self.Z.E1-Zr
             error = (Zd**2).mean()
+            self.calcBound()
+            if (SP.mod(iter,100)==0):
+                print "reconstruction error: %f" % (error) 
 
-            if (SP.mod(iter,100)==0 and self.verbose==True):
-                print "reconstruction error: %f"  % error 
+            if (abs(LB - self._bound) < tolerance) and not forceIterations and iter>minIterations:
+                print 'Converged after %i iterations' % (iter)
+                break
 
-                if (abs(errorOld - error) < tolerance) and not forceIterations and iter>minIterations:
-                    print 'Converged after %i iterations' % (iter)
-                    break
+            #L.info("Iteration %d: time=%.2f bound=%f" % (iter,time.time() - t, self._bound))
+            LB = self._bound
 
-            L.info("Iteration %d: time=%.2f bound=%f" % (iter,time.time() - t, self._bound))
-            errorOld = error
-
-        return error
+        return self._bound
 
         
         #1. itearte
@@ -252,7 +307,10 @@ class CSparseFA(AExpressionModule):
             self.updateW(m)
             self.updateAlpha(m)
             self.updateS(m) 
-        self.updateEps()       
+        self.updateEps()
+
+
+        
         pass
             
 
@@ -320,9 +378,22 @@ class CSparseFA(AExpressionModule):
             self.ZZ[d] = SP.sum(self.Z.E1[:,d]*self.Z.E1[:,d], 0)
         if self.Pi is not None:
             assert self.Pi.shape == (self._D,self.components)
+
+        #which approximation to use: EP/VB?
+#        if self.sparsity=='EPV':
+#            W_node = CNodeWsparseEPV(self)
+#        elif self.sparsity=='EPVp':
+#            W_node = CNodeWsparseEPV(self)
+#            self.permutation_move = True
+#        elif self.sparsity=='EP':
+#            W_node = CNodeWsparseEP(self)
+#        elif self.sparsity=='VB':
+#            W_node = CNodeWsparseVB(self)
+#        else:
+#            W_node = CNodeW(self)
             
 #        self.nodes = {'S':CNodeS(self),'W':W_node,'Eps':CNodeEpsFix(self,self.priors['Eps']['priors'])}
-        self.nodes = {'S':CNodeSsparse(self),'W':CNodeWsparseVB(self), 'Alpha':CNodeAlphasparse(self,self.priors['Alpha']['priors']),'Eps':CNodeEpsSparse(self,self.priors['Eps']['priors'])}
+        self.nodes = {'S':CNodeSsparse(self),'W':CNodeWsparseVEM(self), 'Alpha':CNodeAlphasparse(self,self.priors['Alpha']['priors']),'Eps':CNodeEpsSparse(self,self.priors['Eps']['priors'])}
         for n in self.nodes.keys(): setattr(self,n,self.nodes[n])
 
         #pca initialisation
@@ -480,47 +551,219 @@ class CSparseFA(AExpressionModule):
                 self.S.E1[:,k] = Sinit[:,k]
                 self.W.E1[:,k] = Winit[:,k]
                 self.S.diagSigmaS[:,k] = 1./2
+        #update moments
+        if 0:
+            self.S.update(self)
+            self.W.update(self)
 
 
 
-
-    #calculate the variational bound; currently not used
+    #calculate the variational bound:
     def calcBound(self):
         L.debug('CVBFA calcBound')
-        #print "Not used"
         #self._bound = ABayesNet.calcBound(self)
-#        self.bound=0.
-#        
-#        
-#        #p(data|..)
-#        #OLI: is this right? the last term should be <-1/2*tau(D-W*x)^{2}>
-#        #try: here we recyle the calculation made in the update Eps:
-#        #Bx = -self._N*self._D/2.0*S.log(2*pi) + self._N/2.0*self.Eps.E2.sum() - sum(self.Eps.E1*(self.Eps.a-self.Eps.pa))
-#        #Bx = -self._N*self._D/2.0*S.log(2*pi) + self._N/2.0*self.Eps.E2.sum() + sum(self.Eps.E1*self.Eps.pa-self.Eps.b)
-#
-#
-#        #note : trace (S.cov) comes from the fact that the 2nd moment of S is not just S.E1**2 but + cov!
-#        #KL q(S)/P(S)
-#        
-#        #orig
-#        #Bss= -self._N/2.0*logdet(self.S.cov) - self._N/2.0*trace(eye(self.components)-self.S.cov) + 0.5*(self.S.E1**2).sum()
-#
-#        #KL q(W)/p(W|alpha)
-#        Bww = 0
-#        for k in range(self.components):
-#            Bww-=0.5*self.Non[k]*(special.digamma(self.Alpha.b[k])-S.log(self.Alpha.a[k]))
-#        #Bww= -self._D/2.0*sum(special.digamma(self.Alpha.b)-S.log(self.Alpha.a))
-#
-# #       for d in range(self._D):
-# #           Bww = Bww - 1/2.0*( logdet(self.W.cov[d,:,:]) + trace(eye(self.components)-dot(self.W.E2[d,:,:],diag(self.Alpha.E1))))
-#
-#        #self._bound = self._bound + Bx - Bss - Bww
-#        self._boundLOG.append(self._bound)
-#        L.debug('CVBFA bound = %.2f'%self._bound)
+        self.bound=0.
+        
+        
+        #p(data|..)
+        #OLI: is this right? the last term should be <-1/2*tau(D-W*x)^{2}>
+        #try: here we recyle the calculation made in the update Eps:
+        #Bx = -self._N*self._D/2.0*S.log(2*pi) + self._N/2.0*self.Eps.E2.sum() - sum(self.Eps.E1*(self.Eps.a-self.Eps.pa))
+        #Bx = -self._N*self._D/2.0*S.log(2*pi) + self._N/2.0*self.Eps.E2.sum() + sum(self.Eps.E1*self.Eps.pa-self.Eps.b)
+
+
+        #note : trace (S.cov) comes from the fact that the 2nd moment of S is not just S.E1**2 but + cov!
+        #KL q(S)/P(S)
+        
+        #orig
+        #Bss= -self._N/2.0*logdet(self.S.cov) - self._N/2.0*trace(eye(self.components)-self.S.cov) + 0.5*(self.S.E1**2).sum()
+
+        #KL q(W)/p(W|alpha)
+        Bww = 0
+        for k in range(self.components):
+            Bww-=0.5*self.Non[k]*(special.digamma(self.Alpha.b[k])-S.log(self.Alpha.a[k]))
+        #Bww= -self._D/2.0*sum(special.digamma(self.Alpha.b)-S.log(self.Alpha.a))
+
+ #       for d in range(self._D):
+ #           Bww = Bww - 1/2.0*( logdet(self.W.cov[d,:,:]) + trace(eye(self.components)-dot(self.W.E2[d,:,:],diag(self.Alpha.E1))))
+
+        #self._bound = self._bound + Bx - Bss - Bww
+        self._boundLOG.append(self._bound)
+        L.debug('CVBFA bound = %.2f'%self._bound)
 
         return self._bound
 
 
 
+    def getPrediction(self):
+        L.info('CVBFA getPrediction')
+
+        #make sure we always produce a prediction even if not intialized
+        if self.iterationCount==0:
+            return CGauss(E1=S.array([0]),prec=S.array([0]))
+        p = dot(self.S.E1,self.W.E1.T)
+        E1 = real(p)
+        prec = ones(shape = self.Z.E1.shape)*self.Eps.E1
+
+        return CGauss(E1=E1,prec=prec)
 
 
+    def residuals(self):
+        L.info('CVBFA residuals')
+        return self.Z.E1 - self.getPrediction().E1
+
+
+
+def calc_accuracy(Z,X):
+    """calc predictive accuracy
+    Z: responsibilties
+    X: truth"""
+    Nok = (Z==X).sum()
+    return double(Nok)/X.size
+    
+
+def accuracy_experiment(vbfa,Xt,nIblock =5):
+    """helper function to run an accuracy experiment
+    vbfa: vbfa object to use (needs to be initialised)
+    Xt: true network for evaluation
+    nIblock: number of itertions per block (2)
+    """
+    nIterations = vbfa.nIterations
+    #number of blocks?
+    nblocks     = nIterations/nIblock
+
+    PL.ion()
+    R = S.zeros([nblocks,10])
+    for i in xrange(nblocks):
+        vbfa.iterate(nIterations=nIblock)
+        #get the prdictions and calculate precisions
+        Z = vbfa.W.C[:,:,0]
+        # calc accuracy
+        auc = ROC.auroc(labels=Xt,predictions=Z)
+        acc = calc_accuracy(Z>0.5,Xt)
+        fon = double(Z.sum())/Z.size
+        if 0:
+            #DEBUGGING
+            E1_in = vbfa.W.E1_in
+            prec_in = vbfa.W.prec_in
+            PL.figure(1)
+            PL.clf()
+            PL.hist(E1_in,100)
+            PL.figure(2)
+            PL.clf()
+            PL.hist(prec_in,100)
+            PL.draw()
+            raw_input()        
+        R[i,0] = acc
+        R[i,1] = auc
+        R[i,2] = fon
+        print "accuracy: %f (fraction on on %f)" % (acc,fon)
+    return R
+    
+    
+def mad(X):
+    median = SP.median(X, axis=0)
+    return SP.median(abs(X-median), axis=0)
+    
+def vcorrcoef(X,y):
+    Xm = SP.reshape(SP.mean(X,axis=1),(X.shape[0],1))
+    ym = SP.mean(y)
+    r_num = SP.sum((X-Xm)*(y-ym),axis=1)
+    r_den = SP.sqrt(SP.sum((X-Xm)**2,axis=1)*SP.sum((y-ym)**2))
+    r = r_num/r_den
+    return r
+
+if __name__ =='__main__':
+    #load data and perform sparse FA:
+    data_base = './../Data/DataUAI/Toy_486_20_20'
+#    data_base = './../Data/DataUAI/Toy_1000_60_20'
+    import scipy
+    import scipy.io
+    import os
+    import logging as L
+    import pylab as PL
+    L.getLogger().setLevel(L.INFO)
+
+    random.seed(5)
+
+
+    #data:
+    data_train = os.path.join(data_base,'X_PI_Y_AlphaY_BetaY.mat')
+    data_true  = os.path.join(data_base,'SubnetData.mat')
+    data      = scipy.io.loadmat(data_train)
+    data_true = scipy.io.loadmat(data_true)
+    #prior
+    Pi        = data['Pi']
+    Y         = data['Y'].T
+    #true data
+    truth     = data_true['SubnetData']
+    Xt        = (truth.X>0)
+    Pit       = truth.Pi
+
+    if 0:
+        X = random.randn(20,5)
+        W = random.randn(5,50)
+        Y = S.dot(X,W)
+        components = 5
+
+    components = Pi.shape[1]
+    
+
+    if 0:
+        Y = Y[0:15,:]
+        vbfa2 = CVBFA(components=components,initType='random')
+        vbfa2.init(CGauss(Y))
+        vbfa2.iterate(nIterations=20)
+
+        
+    nIterations=100
+    sigmaOff   =0.1
+
+    #make a differnet problem: subset well determined, rest unknown:
+    
+#    X      = Pi>0.5
+#    Pi[X] = 0.5
+#    Pi[~X] = 0.5
+    #1. VB
+#    Pi[:,:] = 1.0
+    if 1:
+        vbfaVB = CSparseFA(components=components,sigmaOff=sigmaOff,sparsity='VB',nIterations=nIterations)
+        vbfaVB.init(CGauss(Y),Pi=Pi)
+        v2 = copy.copy(vbfaVB)
+        vbfaVB.init(CGauss(Y),Pi=Pi)
+        RVB    = accuracy_experiment(vbfaVB,Xt)
+
+    #2. EP
+    if 0:
+        vbfaEP = CSparseFA(components=components,sigmaOff=sigmaOff,sparsity='EP',nIterations=nIterations)
+        vbfaEP.init(CGauss(Y),Pi=Pi)
+        REP    = accuracy_experiment(vbfaEP,Xt)
+
+    #3. EPV
+    if 0:
+        vbfaEPV = CSparseFA(components=components,sigmaOff=sigmaOff,sparsity='EPV',nIterations=nIterations)
+        vbfaEPV.init(CGauss(Y),Pi=Pi)
+        REPV    = accuracy_experiment(vbfaEPV,Xt)
+        
+    
+    if 0:
+
+        #how many blocks and iterations per block
+        nIterations = 4
+        nIterations_block = 2
+        R = S.zeros([nIterations,3])
+        for i in xrange(nIterations):
+            vbfa.iterate(nIterations=nIterations_block)
+            #get the prdictions and calculate precisions
+            Z = vbfa.W.C[:,:,1]
+            # calc accuracy
+            auc = ROC.auroc(labels=Xt,predictions=Z)
+            acc = calc_accuracy(Z>0.5,Xt)
+            fon = double(Z.sum())/Z.size
+            R[i,0] = acc
+            R[i,1] = auc
+            R[i,2] = fon
+            print "accuracy: %f (fraction on on %f)" % (acc,fon)
+        #calculat area under the curve
+
+    

@@ -18,9 +18,12 @@ def mad(X):
     median = SP.median(X, axis=0)
     return SP.median(abs(X-median), axis=0)
     
-def plotFac(FA, idx1, idx2, lab=None, terms=None, cols=None, isCont=True):
-    X1 = FA.S.E1[:,idx1]
-    X2 = FA.S.E1[:,idx2]
+def plotFactors(FA, idx1, idx2, lab=None, terms=None, cols=None, isCont=True):
+    MAD = mad(FA.S.E1)
+    alpha = (MAD>.5)*(1/(FA.Alpha.E1))
+    idxF = SP.argsort(-alpha)    
+    X1 = FA.S.E1[:,idxF[idx1]]
+    X2 = FA.S.E1[:,idxF[idx2]]
     if isCont==False:
         uLab = SP.unique(lab)  
         if cols==None:
@@ -39,8 +42,24 @@ def plotFac(FA, idx1, idx2, lab=None, terms=None, cols=None, isCont=True):
     else:
         plt.scatter(X1, X2, c=lab, s=20)
         plt.xlabel(terms[idx1])
-        plt.ylabel(terms[idx2])        
-    #plt.savefig('./Tcells_scatter.pdf')
+        plt.ylabel(terms[idx2])
+    plt.show()
+    
+def plotTerms(FA, terms=None, doFilter=True, thre=.5):
+    assert terms!=None and len(terms)==len(FA.Alpha.E1)
+#        print 'terms need to be same length as relevance score'
+    MAD = mad(FA.S.E1)
+    if doFilter==True:
+        alpha = (MAD>thre)*(1/(FA.Alpha.E1))
+    else:
+        alpha = (1/(FA.Alpha.E1))
+    idx_sort = SP.argsort(terms)
+    Y = alpha[idx_sort]
+    X =SP.arange(len(alpha))#[idx_sort]
+    plt.plot(X, Y, '.',markersize=10)
+    plt.xticks(X, terms[idx_sort], size='small', rotation='vertical')    
+    plt.ylabel("Relevance score")
+    plt.show()
     
 def vcorrcoef(X,y):
     Xm = SP.reshape(SP.mean(X,axis=1),(X.shape[0],1))

@@ -6,6 +6,7 @@ Created on Thu Jan 14 14:46:40 2016
 """
 import core.fscLVM as sparseFA
 from sklearn.decomposition import RandomizedPCA,PCA
+import h5py
 import scipy as SP
 import matplotlib as mpl
 import matplotlib.lines as mlines
@@ -14,9 +15,28 @@ import pylab as plt
 import brewer2mpl
 
 
+
 def mad(X):
     median = SP.median(X, axis=0)
     return SP.median(abs(X-median), axis=0)
+    
+def secdev(x):
+    return 1/(2*SP.pi)*(SP.exp(-x*x/2.))*(x*x-1)
+    
+    
+def saveFA(FA):
+    MAD = mad(FA.S.E1)
+    alpha02 = (MAD>.5)*(1/(FA.Alpha.E1))
+    out_file = h5py.File(FA.out_name+'_it_'+str(FA.iterationCount)+'.hdf5','w')    
+    out_file['alphaRaw'] = FA.Alpha.E1
+    out_file['alpha02'] = alpha02  
+    out_file['W'] = FA.W.E1
+    out_file['Eps'] = FA.Eps.E1
+    out_file['S'] = FA.S.E1        
+    out_file['Gamma'] = FA.W.C[:,:,0]
+    out_file['pi'] = FA.Pi
+    out_file['terms'] = FA.terms
+    out_file.close()    
     
 def plotFactors(FA, idx1, idx2, lab=None, terms=None, cols=None, isCont=True):
     MAD = mad(FA.S.E1)

@@ -38,12 +38,27 @@ def saveFA(FA):
     out_file['terms'] = FA.terms
     out_file.close()    
     
-def plotFactors(FA, idx1, idx2, lab=None, terms=None, cols=None, isCont=True):
-    MAD = mad(FA.S.E1)
-    alpha = (MAD>.5)*(1/(FA.Alpha.E1))
-    idxF = SP.argsort(-alpha)    
-    X1 = FA.S.E1[:,idxF[idx1]]
-    X2 = FA.S.E1[:,idxF[idx2]]
+    
+    
+def loadFA(out_name):
+    out_file = h5py.File(out_name,'r')    
+    res = {}   
+    for key in out_file.keys():    
+        res[key] = out_file[key]    
+    return res
+    
+    
+def plotFactors(idx1, idx2,FA=None, X = None,  lab=None, terms=None, cols=None, isCont=True):
+    if FA!=None:
+        MAD = mad(FA.S.E1)
+        alpha = (MAD>.5)*(1/(FA.Alpha.E1))
+        idxF = SP.argsort(-alpha)    
+        X1 = FA.S.E1[:,idxF[idx1]]
+        X2 = FA.S.E1[:,idxF[idx2]]
+    else:
+        X1 = X[:,idx1]
+        X2 = X[:,idx2]        
+    
     if isCont==False:
         uLab = SP.unique(lab)  
         if cols==None:
@@ -64,15 +79,24 @@ def plotFactors(FA, idx1, idx2, lab=None, terms=None, cols=None, isCont=True):
         plt.xlabel(terms[idx1])
         plt.ylabel(terms[idx2])
     plt.show()
+
+
     
-def plotTerms(FA, terms=None, doFilter=True, thre=.5):
-    assert terms!=None and len(terms)==len(FA.Alpha.E1)
-#        print 'terms need to be same length as relevance score'
-    MAD = mad(FA.S.E1)
-    if doFilter==True:
-        alpha = (MAD>thre)*(1/(FA.Alpha.E1))
+def plotTerms(FA=None, S=None, alpha=None, terms=None, doFilter=True, thre=.5):
+    assert terms!=None
+#        print 'terms need to be same length as relevance score'    
+    if FA!=None:
+        MAD = mad(FA.S.E1)
+        if doFilter==True:
+            alpha = (MAD>thre)*(1/(FA.Alpha.E1))
+        else:
+            alpha = (1/(FA.Alpha.E1))
+    elif doFilter==True:
+        MAD = mad(S) 
+        alpha = (MAD>thre)*(1/(alpha))
     else:
-        alpha = (1/(FA.Alpha.E1))
+        alpha = 1./alpha
+                 
     idx_sort = SP.argsort(terms)
     Y = alpha[idx_sort]
     X =SP.arange(len(alpha))#[idx_sort]
@@ -81,6 +105,24 @@ def plotTerms(FA, terms=None, doFilter=True, thre=.5):
     plt.ylabel("Relevance score")
     plt.show()
     
+
+
+def regressOut(Y,idx, FA=None, S=None, W=None, C=None, use_latent=False):
+    assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]
+    if FA != None:
+        S = FA.S.E1
+        W = FA.W.E1
+        C = FA.W.C[:,:,0]        
+    idx = SP.array(idx)        
+    if use_latent==False:
+        Ycorr = Y-SP.dot(S[:,idx], (C[:,idx]*W[:,idx]))
+    else:
+        idx_use = SP.array(set(SP.arange(S.shape[1]))-set(idx))
+        Ycorr = SP.dot(S[:,idx_use], (C[:,idx_use]*W[:,idx_use,0]))    
+    return Ycorr
+    
+    
+
 def vcorrcoef(X,y):
     Xm = SP.reshape(SP.mean(X,axis=1),(X.shape[0],1))
     ym = SP.mean(y)

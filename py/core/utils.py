@@ -121,10 +121,10 @@ def regressOut(Y,idx, FA=None, S=None, W=None, C=None, use_latent=False):
         C = FA.W.C[:,:,0]        
     idx = SP.array(idx)        
     if use_latent==False:
-        Ycorr = Y-SP.dot(S[:,idx], (C[:,idx]*W[:,idx]))
+        Ycorr = Y-SP.dot(S[:,idx], (C[:,idx]*W[:,idx]).T)
     else:
-        idx_use = SP.array(set(SP.arange(S.shape[1]))-set(idx))
-        Ycorr = SP.dot(S[:,idx_use], (C[:,idx_use]*W[:,idx_use,0]))    
+        idx_use = SP.setxor1d(SP.arange(S.shape[1]),idx)
+        Ycorr = SP.dot(S[:,idx_use], (C[:,idx_use]*W[:,idx_use]).T)    
     return Ycorr
     
     

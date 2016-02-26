@@ -24,7 +24,7 @@ def secdev(x):
     return 1/(2*SP.pi)*(SP.exp(-x*x/2.))*(x*x-1)
     
     
-def saveFA(FA):
+def saveFA(FA, idx=None, Ycorr=None, Ycorr_lat = None):
     MAD = mad(FA.S.E1)
     alpha02 = (MAD>.5)*(1/(FA.Alpha.E1))
     out_file = h5py.File(FA.out_name+'_it_'+str(FA.iterationCount)+'.hdf5','w')    
@@ -36,6 +36,12 @@ def saveFA(FA):
     out_file['Gamma'] = FA.W.C[:,:,0]
     out_file['pi'] = FA.Pi
     out_file['terms'] = FA.terms
+    if idx != None:
+        out_file['idx'] = idx
+    if Ycorr != None:
+        out_file['Ycorr'] = Ycorr
+    if Ycorr_lat != None:
+        out_file['Ycorr_lat'] = Ycorr_lat               
     out_file.close()    
     
     
@@ -108,7 +114,7 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, doFilter=True, thre=.5):
 
 
 def regressOut(Y,idx, FA=None, S=None, W=None, C=None, use_latent=False):
-    assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]
+    #assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]
     if FA != None:
         S = FA.S.E1
         W = FA.W.E1

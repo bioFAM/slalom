@@ -113,6 +113,19 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, doFilter=True, thre=.5):
     
 
 
+def getF(Y,FA=None, S=None, W=None, C=None, use_latent=False):
+    #assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]
+    if FA != None:
+        S = FA.S.E1
+        W = FA.W.E1
+        C = FA.W.C[:,:,0]  
+
+    isExpressed = (Y>0)*1.
+    F = SP.dot(S,(C*W).transpose())
+    F[isExpressed==0] = (F - 4.*(1./(1.+SP.exp(-F))))[isExpressed==0]  
+    return F
+
+
 def regressOut(Y,idx, FA=None, S=None, W=None, C=None, use_latent=False):
     #assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]
     if FA != None:

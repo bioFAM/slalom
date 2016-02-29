@@ -33,7 +33,7 @@ def dumpDictHdf5(RV,o):
 	for key in RV.keys():
 		o.create_dataset(name=key,data=SP.array(RV[key]),chunks=True,compression='gzip')
 
-def smartDumpDictHdf5(RV,o, chunks=True):
+def smartDumpDictHdf5(RV,o, chunks=True, close_file=True):
 	""" Dump a dictionary where each page is a list or an array or still a dictionary (in this case, it iterates)"""
 	for key in RV.keys():
 		if type(RV[key])==dict:
@@ -44,7 +44,20 @@ def smartDumpDictHdf5(RV,o, chunks=True):
 				o.create_dataset(name=key,data=SP.array(RV[key]),chunks=False)
 			else:
 				o.create_dataset(name=key,data=SP.array(RV[key]),chunks=True,compression='gzip')
-	o.close()
+        if close_file==True: 
+	    o.close()
+     
+def smartGetDictHdf5(o):
+    RV={}    
+    for key in o.keys():
+        if type(o[key])==dict:
+            smartGetDictHdf5(RV[key],o[key])
+        else:
+            if len(o[key].shape)==0:
+                RV[key] = o[key][()]
+            else:
+                RV[key] = o[key][:]
+    return RV
 
 def warning_on_one_line(message, category, filename, lineno, file=None, line=None):
     return ' %s:%s: %s:%s' % (filename, lineno, category.__name__, message)

@@ -92,9 +92,6 @@ class CNodeWsparse(CNodeW):
     - main application : permutation move of factors"""
     def __init__(self,net,**kwargin):
         #call base class initialisation
-        #CNodeW.__init__(self,net,**kwargin)
-        #create indicator arrays for moment calculation
-      
         self.Pi = zeros([net.Pi.shape[0],net.Pi.shape[1],2])
         self.Pi[:,:,0] =net.Pi
         self.Pi[:,:,1] = 1.-net.Pi
@@ -390,7 +387,7 @@ class CSparseFA(AExpressionModule):
         
             
     def update(self):
-
+        #OR use Poisson noise model and then max(kappa poisson, 0.25) todo on the train..then check with toy data...
         M = self.components
         mRange = range(M)
         nFix = self.nKnown+self.nLatent
@@ -398,7 +395,6 @@ class CSparseFA(AExpressionModule):
             mRange[nFix:] = SP.random.permutation(mRange[nFix:])
             #mRange[nFix:] = SP.random.permutation(mRange[nFix:])
         #print mRange[0:4]
-
         for m in mRange:
             if self.doUpdate[m]==1:
                 if self.iterationCount <10 or (self.Alpha.E1[m]/self.S.E1[:,m].var())<1e8:

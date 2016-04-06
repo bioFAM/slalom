@@ -13,6 +13,7 @@ from core.utils import *
 
 import core.utils as utils
 import core.sparseFAdropFast2 as sparseFA
+
 import matplotlib as mpl
 import matplotlib.lines as mlines
 mpl.use('Agg')
@@ -147,6 +148,8 @@ if __name__ == '__main__':
     terms = terms[SP.sum(pi>.5,0)>minGenes]
     pi = pi[:,SP.sum(pi>.5,0)>minGenes]        
     
+    
+     
     terms = SP.hstack([SP.repeat('hidden',nHidden), terms])
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])
 
@@ -220,6 +223,7 @@ if __name__ == '__main__':
     K = pi.shape[1]
     #data for sparseFA instance
 
+
     init={'init_data':sparseFA.CGauss(Y),'Pi':pi,'init_factors':init_factors}
     sigmaOff = 1E-3
     sparsity = 'VB'
@@ -256,6 +260,9 @@ if __name__ == '__main__':
             saveFA(FA)
 
 
+=======
+            
+    
     Ion = FA.W.C[:,:,1]>.5
     NonInf = SP.sum(FA.W.C[:,:,0]>.5,0)
     IonInf = FA.W.C[:,:,0]>.5
@@ -264,11 +271,6 @@ if __name__ == '__main__':
         rel_contrib[k] = NonInf[k]/(FA.Alpha.E1[k]*(Y[:,IonInf[:,k]].var(0)-1./FA.Eps.E1[IonInf[:,k]]).sum())
         #rel_contrib[k] = NonInf[k]/(FA.Alpha.E1[k]*(Y[:,IonInf[:,k]].var(0)).sum())
 
-
-    MAD = mad(FA.S.E1)
-    alpha0 = (MAD>.1)*(rel_contrib)
-    alpha = (MAD)*(rel_contrib)
-    alpha2 = 1./(FA.Alpha.E1)
     alpha02 = (MAD>.05)*(1/(FA.Alpha.E1))
 
     print alpha02
@@ -323,6 +325,7 @@ if __name__ == '__main__':
         ggplot2.labs(x="Processes", y='Relevance')#+ theme(axis.title.y = 'element_text(size = rel(1.2))')+theme(axis.title.x = element_text(size = rel(1.2)))
     p.save(out_name+'_relevance.pdf', height=4, width=7)
 
+       
     labels=str(tuple(['G1', 'S', 'G2M']))
     if colName=="Cell Cycle":
         pScatter = ggplot2.ggplot(datafs)+\
@@ -371,6 +374,11 @@ if __name__ == '__main__':
     out_file.close()
     #pickle.dump(FA, open(out_name+'_FA.pickle', 'w'))
 
+    
+
+
+  
+>>>>>>> 564e8fac635e2a87da2c01e8881e2a3f8a474fd8
 
 
 

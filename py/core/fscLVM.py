@@ -4,12 +4,11 @@
 
 from vbfa import *
 import scipy as SP
+import h5py
 #from mlib.utils import *
 #from mlib.plot import *
 import copy
-import pdb
-from sklearn import metrics
-from sklearn.decomposition import PCA
+from sklearn.decomposition import RandomizedPCA
 
 
 class CNodeAlphasparse(AGammaNode):
@@ -140,7 +139,7 @@ class CSparseFA(AExpressionModule):
         #
         dp = AExpressionModule.getDefaultParameters(self)
         dp['initType'] = 'pcaRand'
-        dp['nIterations'] = 500
+        dp['nIterations'] = 2000
         dp['permutation_move'] = False
         dp['shuffle']=True
         dp['components'] = 5
@@ -166,12 +165,11 @@ class CSparseFA(AExpressionModule):
         return name
 
 
-    def iterate(self, nIterations=None, forceIterations=None, tolerance=None, minIterations=10):
+    def iterate(self, nIterations=None, forceIterations=None, tolerance=1e-10, minIterations=800):
         '''iterate(nIteations=None,forceIterations=None)
         - perform nIterations; per default(None) parameters are tken from local intsance settings
         '''
-        #forceIterations=True
-        L.debug('SparseFA iterate')
+        print 'iterate...'
         iter=0
         if tolerance is None: tolerance = self.tolerance
         if nIterations is None: nIterations = self.nIterations
@@ -179,31 +177,34 @@ class CSparseFA(AExpressionModule):
         Ion = (self.W.C[:,:,0]>.5)*1.
         Zr = S.dot(self.S.E1,(self.W.E1.T*Ion.T))
         Zd = self.Z.E1-Zr
-        error = (Zd**2).mean()
+        error = abs(Zd).mean()
         self.calcBound()
-        if SP.mod(iter,1)==0:
-            print "reconstruction error: %f lower bound: %f" % (error,  self._bound)
-        LB = 0
+        #if SP.mod(iter,1)==0:
+        #    print "reconstruction error: %f " % error
+        self.calcError()
 
         for iter in range(nIterations):
             self.update()                
             self.iterationCount+=1
             #calc reconstruction error
-            Zr = S.dot(self.S.E1,self.W.E1.T)
-            Zd = self.Z.E1-Zr
-            error = (Zd**2).mean()
-            self.calcBound()
-            if (SP.mod(iter,100)==0):
-                print "reconstruction error: %f" % (error) 
 
-            if (abs(LB - self._bound) < tolerance) and not forceIterations and iter>minIterations:
-                print 'Converged after %i iterations' % (iter)
-                break
+            if SP.mod(iter,100)==0:
+                Ion = (self.W.C[:,:,0]>.5)*1.
+                Zr = S.dot(self.S.E1,(self.W.E1.T))
+                Zd = self.Z.E1-Zr
+                error = (Zd**2).mean()
+                #self.calcBound()
+                #print "iter: %i reconstruction error: %1.8f" % (iter, error)
+                print "iter %i" % iter
+                #print abs(error - self.error)
 
-            #L.info("Iteration %d: time=%.2f bound=%f" % (iter,time.time() - t, self._bound))
-            LB = self._bound
+                if (abs(error - self.error) < tolerance) and not forceIterations and iter>minIterations:
+                    print 'Converged after %i iterations' % (iter)
+                    break
+                #L.info("Iteration %d: time=%.2f bound=%f" % (iter,time.time() - t, self._bound))
+                self.error = error.copy()
 
-        return self._bound
+        return error
 
         
         #1. itearte
@@ -422,95 +423,36 @@ class CSparseFA(AExpressionModule):
                 k+=self.nKnown
                 if Ion[:,k].sum()>0:
                     #pdb.set_trace()
-                    sv = linalg.svd(self.Z.E1[:,Ion[:,k]], full_matrices = 0);
-                    [s0,w0] = [sv[0][:,0:2], S.dot(S.diag(sv[1]),sv[2]).T[:,0:2]]#PC 1 or 2???
-                    v = s0.std(axis=0)
-                    s0 /= v;
-                    w0 *= v;
+                    if 0:
+                        sv = linalg.svd(self.Z.E1[:,Ion[:,k]], full_matrices = 0);
+                        [s0,w0] = [sv[0][:,0:2], S.dot(S.diag(sv[1]),sv[2]).T[:,0:2]]#PC 1 or 2???
+                        v = s0.std(axis=0)
+                        s0 /= v;
+                        w0 *= v;
+                        self.S.E1[:,k] = s0[:,0]#+(s0[:,1])
+                    else:
+                        pca = RandomizedPCA(n_components=1, iterated_power=2)
+                        s0 = pca.fit_transform(self.Z.E1[:,Ion[:,k]]) 
+                        self.S.E1[:,k] = s0[:,0]#+(s0[:,1])
+
                     #pdb.set_trace()
                     self.W.E1[:,k] = SP.sqrt(1./self.components)*SP.randn(self._D)        
-                    #self.W.E1[Ion[:,k],k] = w0[:,0].ravel()
-                    #self.W.E1[~Ion[:,k],k]*=self.sigmaOff
-
-                    self.S.E1[:,k] =0.0* SP.randn(self._N)+(s0[:,0])#+(s0[:,1])
-                    
+     
                 else:
                     self.S.E1[:,k] = random.randn(self._N,)
                     self.W.E1[:,k] = SP.sqrt(1./self.components)*SP.randn(self._D)
                     
-
                 self.S.diagSigmaS[:,k] = 1./2
-                
-            
+                            
             if self.nKnown>0:
                 for k in SP.arange(self.nKnown):
                     self.W.E1[:,k] = SP.sqrt(1./self.components)*SP.randn(self._D)
                     self.S.diagSigmaS[:,k] = 1./2
                 self.S.E1[:,SP.arange(self.nKnown)] =  self.Known
             if self.nLatent>0:
-                #pca = PCA(n_components=1)
-                #pca.fit(self.Z.E1)
-                #X = pca.transform(self.Z.E1)
-#                covM=SP.cov(self.Z.E1)
-#                EV = linalg.eigh(covM)[1][:,(self._N-self.nLatent):(self._N)]
-#                EV-=EV.mean(0)
-#                EV/=EV.std(0)
-                #self.S.E1[:,self.iLatent]=X+.1*SP.randn(self._N,self.nLatent)
                 for iL in self.iLatent:
                     self.S.E1[:,iL] = random.randn(self._N,)#+X[:,0]#EV[:,self.nLatent-1]
-            if 0:
-#                covM=SP.cov(self.Z.E1)
-#                EV = linalg.eigh(covM)[1][:,(self._N-1):(self._N)]
-#                EV-=EV.mean(0)
-#                EV/=EV.std(0)
-                pca = PCA(n_components=1)
-                pca.fit(self.Z.E1)
-                X = pca.transform(self.Z.E1)
-
-                nFix = self.nKnown+self.nLatent
-                MPC = abs(vcorrcoef(self.S.E1[:,nFix:].T,X.T))
-                Ipi = SP.argsort(-MPC.ravel())
-                #pdb.set_trace()
-                self.W.Ilabel = SP.hstack([SP.arange(nFix),Ipi+nFix])
-                #update the prior Pi
-                self.Pi[:,nFix:] = self.Pi[:,Ipi+nFix]
-                self.S.E1[:,nFix:] = self.S.E1[:,Ipi+nFix]
-                self.W.Pi[:,nFix:] = self.W.Pi[:,Ipi+nFix]                
-                self.W.C[:,nFix:,:] = self.W.C[:,Ipi+nFix,:]   
-            if 0:
-
-                nFix = self.nKnown+self.nLatent
-                FA0 = self
-                alphaList=list()
-                MADList=list()
-                I0 = SP.arange(self.components-nFix)
-                for i in range(5):
-                    FA=FA0
-#                    Ipi = SP.random.permutation(I0)
-#                    FA.W.Ilabel = SP.hstack([SP.arange(nFix),Ipi+nFix])
-#                #update the prior Pi
-#                    FA.Pi[:,nFix:] = FA.Pi[:,Ipi+nFix]
-#                    FA.S.E1[:,nFix:] = FA.S.E1[:,Ipi+nFix]
-#                    FA.W.Pi[:,nFix:] = FA.W.Pi[:,Ipi+nFix]                
-#                    FA.W.C[:,nFix:,:] = FA.W.C[:,Ipi+nFix,:]  
-                    for j in range(5):
-                        FA.update()
-                    MAD = mad(FA.S.E1)
-                    alphaList.append(FA.Alpha.E1)
-                    MADList.append(MAD)
-                Ipi = SP.argsort(SP.mean(SP.array(alphaList),0)[nFix:])
-                #pdb.set_trace()
-                self.W.Ilabel = SP.hstack([SP.arange(nFix),Ipi+nFix])
-                #update the prior Pi
-                self.Pi[:,nFix:] = self.Pi[:,Ipi+nFix]
-                self.S.E1[:,nFix:] = self.S.E1[:,Ipi+nFix]
-                self.W.Pi[:,nFix:] = self.W.Pi[:,Ipi+nFix]                
-                self.W.C[:,nFix:,:] = self.W.C[:,Ipi+nFix,:] 
-                print self.terms[self.W.Ilabel]
-                pdb.set_trace() 
-                        
-                    
-                
+                                                            
             self.initS = self.S.E1.copy()
                 
         elif self.initType == 'greedy':
@@ -556,7 +498,13 @@ class CSparseFA(AExpressionModule):
             self.S.update(self)
             self.W.update(self)
 
-
+    #calculate the variational bound:
+    def calcError(self):
+        Ion = (self.W.C[:,:,0]>.5)*1.
+        Zr = S.dot(self.S.E1,(self.W.E1.T))
+        Zd = self.Z.E1-Zr
+        self.error = abs(Zd).mean()
+        return self.error
 
     #calculate the variational bound:
     def calcBound(self):

@@ -5,9 +5,10 @@ library(tidyr)
 setwd('~/projects/Auto_Bionf/scLVM2/R')
 
 
-
 dataCounts = h5dump('../data/normCountsBuettnerEtAl.h5f')
 idx_het = which(dataCounts$genes_heterogen==1)
+
+#log transformed and normalized expression matirx
 Y = dataCounts$LogNcountsHum
 countsMmusFilter= Y[idx_het,]
 rownames(countsMmusFilter) = dataCounts$sym_names_het
@@ -19,7 +20,11 @@ Known = cbind(modelMat,nEspressed,ERCCPCs[,1:2])
 
 colnames(Known) = c(paste("ccPhase",c("S", "G2M"),sep=""),'nExpressed', paste("PC",seq(1,2),sep=""))
 
-Yscale = (t(countsMmusFilter))
+
+#if you have custom gene sets add them here
+#setsAdd = list()
+#setsAdd[[1]]=custom_genes
+#setsAdd_names = 'XXX'
 
 write_scLVM2(countsMmusFilter, '../data/Buettneretal_.hdf5', Known=Known)
 
@@ -85,19 +90,19 @@ write_scLVM2 <- function(countsMmusFilter, filename, minGenes=15, Known=NULL, is
     terms = c(terms, setsAdd_names)    
   }
   
-  Pi = matrix(0.01,dim(Yhet)[2],length(idx_list))
+  Pi = matrix(0.001,dim(Yhet)[2],length(idx_list))
   for(i in 1:length(idx_list)){
     Pi[idx_list[[i]],i]=0.99 
   }
   
-  PiR20 = matrix(0.01,dim(Yhet)[2],length(sets_indices20))
+  PiR20 = matrix(0.001,dim(Yhet)[2],length(sets_indices20))
   for(i in 1:length(sets_indices20)){
     PiR20[sets_indices20[[i]],i]=0.99 
   }
   termsR = names(sets_indices20)
   
   
-  PiW15 = matrix(0.01,dim(Yhet)[2],length(sets_indicesWiki15))
+  PiW15 = matrix(0.001,dim(Yhet)[2],length(sets_indicesWiki15))
   for(i in 1:length(sets_indicesWiki15)){
     PiW15[sets_indicesWiki15[[i]],i]=0.99 
   }

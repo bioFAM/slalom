@@ -78,8 +78,12 @@ def plotFactors(idx1, idx2,FA=None, X = None,  lab=None, terms=None, cols=None, 
     if isCont==False:
         uLab = SP.unique(lab)  
         if cols==None:
-             bmap=brewer2mpl.get_map('Paired', 'Qualitative', len(uLab))
-             cols = bmap.hex_colors         
+            try:
+                import brewer2mpl
+            except ImportError:
+                print 'Specify colors using the cols argument or install the brewer2mpl module'
+            bmap=brewer2mpl.get_map('Paired', 'Qualitative', len(uLab))
+            cols = bmap.hex_colors         
         pList=list()
         for i in range(len(X1)):
             pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(lab[i]==uLab)[0]]))
@@ -158,20 +162,13 @@ def vcorrcoef(X,y):
     return r
 
  
-def getIlabel(order, Y, terms, pi,init_factors=None, noise='normal'):
+def getIlabel(order, Y, terms, pi,init_factors=None):
     assert (order in ['preTrain', 'PCA'])
-    assert (noise in ['normal', 'drop', 'poisson'])
 
-    if noise=='normal':
-        import core.fscLVM as fscLVM
-    elif noise=='drop':
-        import core.sparseFAdropFast2 as fscLVM
-    elif noise=='poisson':
-        import core.sparseFApoissonNSknown as fscLVM
 
     if order=='preTrain':
         assert init_factors!=None
-        Ilabel = preTrain(Y, terms, pi,init_factors, noise=noise)
+        Ilabel = preTrain(Y, terms, pi,init_factors)
         return Ilabel
     else:
         PCs = SP.zeros((Y.shape[0], pi.shape[1]))
@@ -189,15 +186,8 @@ def getIlabel(order, Y, terms, pi,init_factors=None, noise='normal'):
         return Ilabel
         
 
-def preTrain(Y, terms, pi00,init_factors, nFix=None, noise='normal'):
-    assert (noise in ['normal', 'drop', 'poisson'])
-
-    if noise=='normal':
-        import core.fscLVM as fscLVM
-    elif noise=='drop':
-        import core.sparseFAdropFast2 as fscLVM
-    elif noise=='poisson':
-        import core.sparseFApoissonNSknown as fscLVM
+def preTrain(Y, terms, pi00,init_factors, nFix=None):
+    import core.fscLVM as fscLVM
 
     pi = pi00.copy()
     K = pi.shape[1]
@@ -227,8 +217,6 @@ def preTrain(Y, terms, pi00,init_factors, nFix=None, noise='normal'):
     pca.fit(FA0.Z.E1)
     X = pca.transform(FA0.Z.E1)
 
-    
-    
 
 #Sort by correlation to PC1    
     MPC = abs(vcorrcoef(FA0.initS[:,SP.argsort(FA0.W.Ilabel)].T,X.T))[nFix:]
@@ -271,7 +259,7 @@ def preTrain(Y, terms, pi00,init_factors, nFix=None, noise='normal'):
 
     return Ilabel
     
-def load_data(dFile, annotation='MSigDB', minGenes=15, nHidden=3, doFast=True, FNR=0.001):
+def load_data(dFile, annotation='MSigDB', minGenes=15, nHidden=3, doFast=True, FNR=0.001, noise='gauss'):
     data={}
     if doFast==False:
         out_dir = os.path.join(out_base,  dFile.split('.')[0],annotation)
@@ -304,8 +292,9 @@ def load_data(dFile, annotation='MSigDB', minGenes=15, nHidden=3, doFast=True, F
         pi = pi[idx_genes,:]
 
 
-    #center data
-    Y-=SP.mean(Y,0)
+    #center data for Gaussian observation noise
+    if noise=='gauss':
+        Y-=SP.mean(Y,0)
 
     #include hidden variables
     terms = SP.hstack([SP.repeat('hidden',nHidden), terms])
@@ -317,7 +306,8 @@ def load_data(dFile, annotation='MSigDB', minGenes=15, nHidden=3, doFast=True, F
 
     return data
 
-def addKnown(init_factors,dataFile,data, idx_known=None):
+def addKnown(init_factors,dFile,data, idx_known=None):
+    dataFile = h5py.File(os.path.join(data_dir, dFile), 'r')
     if len(idx_known)>0:
         known_names = dataFile['known_names'][:][idx_known]
         if len(dataFile['Known'][:].shape)>1:
@@ -329,7 +319,5 @@ def addKnown(init_factors,dataFile,data, idx_known=None):
         data['terms'] = SP.hstack([ known_names,data['terms']])
         pi = SP.hstack([SP.ones((Y.shape[1],len(idx_known)))*.5,pi])
         init_factors['Known'] = known
-    else:
-        known_names = '0'
 
     return init_factors

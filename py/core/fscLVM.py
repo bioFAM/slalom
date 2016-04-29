@@ -282,7 +282,7 @@ class CSparseFA(AExpressionModule):
             self.Known = init_factors['Known']
             assert self.Known.shape[0] == self.Z.E1.shape[0]
             self.nHidden = self.components-self.nKnown
-            self.iHidden = SP.arange(self.nHidden,self.nHidden+self.nKnown)
+            self.iHidden = SP.arange(self.nKnown,self.nHidden+self.nKnown)
             if init_factors.has_key('Intr'):
                 self.nKnown = init_factors['Known'].shape[1]
                 self.Known = init_factors['Known']
@@ -397,12 +397,19 @@ class CSparseFA(AExpressionModule):
         elif self.initType == 'random':
             for k in range(self.Pi.shape[1]):
                 self.S.diagSigmaS[:,k] = 1./2
-                self.S.E1[:,k] = 2*SP.randn(self._N)
+                self.S.E1[:,k] = SP.randn(self._N)
             self.W.E1 = SP.randn(self._D, self.Pi.shape[1])
             self.W.C[:,:,0] = self.Pi
             self.W.C[:,:,0][self.W.C[:,:,0]<=.2] = .1
             self.W.C[:,:,0][self.W.C[:,:,0]>=.8] = .9
-            self.initS = self.S.E1.copy()
+            if self.nKnown>0:
+                for k in SP.arange(self.nKnown):
+                    self.W.E1[:,k] = SP.sqrt(1./self.components)*SP.randn(self._D)
+                    self.S.diagSigmaS[:,k] = 1./2
+                self.S.E1[:,SP.arange(self.nKnown)] =  self.Known
+            if self.saveInit==True:
+                self.initS = self.S.E1.copy()
+
         elif self.initType == 'data':
             assert ('S' in init_factors.keys())
             assert ('W' in init_factors.keys())

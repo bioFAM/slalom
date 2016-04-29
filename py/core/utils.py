@@ -186,7 +186,7 @@ def getIlabel(order, Y, terms, pi,init_factors=None):
         return Ilabel
         
 
-def preTrain(Y, terms, pi00,init_factors, nFix=None):
+def preTrain(Y, terms, pi00,init_factors, nFix=None, initType='pcaRand'):
     import core.fscLVM as fscLVM
 
     pi = pi00.copy()
@@ -204,7 +204,7 @@ def preTrain(Y, terms, pi00,init_factors, nFix=None):
     #prior on noise level 
     priors = {'Eps': {'priors':[1E-3,1E-3]}}
     #how to initialize network?
-    initType = 'pcaRand'
+    #initType = 'pcaRand'
     terms0=terms
     pi0=pi.copy()
     FA0 = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType=initType)
@@ -314,10 +314,12 @@ def addKnown(init_factors,dFile,data, idx_known=None):
             known = dataFile['Known'][:].T[:,idx_known]
         else:
             known = dataFile['Known'][:][:,SP.newaxis]
-        known -= known.mean(0)
-        known /= known.std(0)
+        #known -= known.mean(0)
+        #known /= known.std(0)
         data['terms'] = SP.hstack([ known_names,data['terms']])
-        pi = SP.hstack([SP.ones((Y.shape[1],len(idx_known)))*.5,pi])
+        pi = SP.hstack([SP.ones((data['Y'].shape[1],len(idx_known)))*.99,data['pi']])
+        data['pi'] = pi
         init_factors['Known'] = known
+        init_factors['iLatent'] = init_factors['iLatent'] + len(idx_known)
 
-    return init_factors
+    return init_factors, data

@@ -138,7 +138,7 @@ class CSparseFA(AExpressionModule):
         if m>=self.nKnown:
             if self.noise=='gauss':
                 YmeanX = self.Z.E1
-            elif self.noise=='drop' or self.noise=='poisson':
+            elif self.noise=='hurdle' or self.noise=='poisson':
                 YmeanX = self.meanX
 
             setMinus = SP.int_(SP.hstack([range(M)[0:m],range(M)[m+1::]]))
@@ -167,7 +167,7 @@ class CSparseFA(AExpressionModule):
         M = self.components
         if self.noise=='gauss':
             YmeanX = self.Z.E1
-        elif self.noise=='drop' or self.noise=='poisson':
+        elif self.noise=='hurdle' or self.noise=='poisson':
             YmeanX = self.meanX
 
         if (m<self.nKnown) or (m in self.iLatentSparse) or (m in self.iLatent):
@@ -270,10 +270,10 @@ class CSparseFA(AExpressionModule):
 
         if self.noise=='gauss':
             self.updateEps()
-        elif self.noise=='drop':
+        elif self.noise=='hurdle':
             self.updateEpsDrop()
 
-        if self.noise=='drop' or self.noise=='poisson':
+        if self.noise=='hurdle' or self.noise=='poisson':
             epsK = self.Eps.E1.copy()#[self.Eps.E1>1/4.]=1/4
             epsK[self.Eps.E1>1/4.]=1/4.
             Xi = SP.dot(self.S.E1,(self.W.C[:, :,0]*self.W.E1).transpose())
@@ -315,7 +315,7 @@ class CSparseFA(AExpressionModule):
         if self.noise=='poisson':
             self.kappa = 1./4.0 + 0.17*self.Z.E1.max(0)
 
-        if self.noise=='drop':
+        if self.noise=='hurdle':
             self.meanX = self.Z.E1.copy()
             self.isExpressed = (self.Z.E1>0)*1.
         self.numExpressed = SP.sum(self.Z.E1>0,0)
@@ -400,7 +400,7 @@ class CSparseFA(AExpressionModule):
                 self.S.diagSigmaS[:,k] = 1./2
         if self.initType == 'pcaRand':
             random.seed(222)
-            if self.noise == 'drop':
+            if self.noise == 'hurdle':
                 Zstd = self.Z.E1.copy()
                 self.meanZ = Zstd.mean(0)
                 Zstd-=Zstd.mean(0)

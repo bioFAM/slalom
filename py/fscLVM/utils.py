@@ -312,7 +312,7 @@ def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,pruneG
 
     assert I.shape[0]==num_genes, 'annotation needs to be matched to gene input dimension'
     #OS: check list
-    assert noise in ['gauss','drop','poisson'], 'invalid noise model'
+    assert noise in ['gauss','hurdle','poisson'], 'invalid noise model'
     assert 0<FNR<1, 'FNR is required to be between 0 and 1'
     assert 0<FNR<1, 'FPR is required to be between 0 and 1'
 
@@ -361,12 +361,10 @@ def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,pruneG
     num_terms += nHidden
 
    
-    #OS: why is pretraining done with fixed noise model?
-    Ilabel = preTrain(Y, terms, pi, noise='gauss', nFix=None, initType='pcaRand')
+    Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=None, initType='pcaRand')
     pi = pi[:,Ilabel]
     terms = terms[Ilabel]    
-    #OS: why is the noise model fixed here?
-    init={'init_data':fscLVM.CGauss(Y),'Pi':pi,'terms':terms, 'noise':'gauss'}
+    init={'init_data':fscLVM.CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
     FA = fscLVM.CSparseFA(components=num_terms)   
     FA.init(**init)  
     return FA   

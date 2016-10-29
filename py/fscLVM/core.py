@@ -1,4 +1,18 @@
- # fscLVM
+# Copyright(c) 2016, The f-scLVM developers (Florian Buettner, Oliver Stegle)
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+# fscLVM
 # factorial single cell latent variable model
 # this class implements  a  variational inference procedure for a sparse model with different observation noise models.
 from __future__ import division
@@ -295,6 +309,7 @@ class CSparseFA(AExpressionModule):
         if not isinstance(init_data,AGaussNode):
             raise Exception("initialization is only possible from a GaussNode")
         self.Z = CNodeZ(node=init_data)
+
         #datanode hold the data
         self.dataNode = self.Z
         if self.noise=='poisson':
@@ -305,7 +320,7 @@ class CSparseFA(AExpressionModule):
             self.isExpressed = (self.Z.E1>0)*1.
         self.numExpressed = SP.sum(self.Z.E1>0,0)
         
-        #known factors
+        #known covariates
         if init_factors!=None and init_factors.has_key('Known'):
             self.nKnown = init_factors['Known'].shape[1]
             self.Known = init_factors['Known']
@@ -322,7 +337,8 @@ class CSparseFA(AExpressionModule):
             self.nHidden = self.components
             self.nKnown = 0
             self.iHidden = list()
-            
+
+        #OS: this part here looks confusing. I don't understand what the variables are. Some more clarity would be good            
         if init_factors!=None and init_factors.has_key('iLatent'):
             self.iLatent = init_factors['iLatent']
             self.nLatent = len(init_factors['iLatent'])

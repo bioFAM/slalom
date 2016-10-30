@@ -1,4 +1,18 @@
- # fscLVM
+# Copyright(c) 2016, The f-scLVM developers (Florian Buettner, Oliver Stegle)
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+# fscLVM
 # factorial single cell latent variable model
 # this class implements  a  variational inference procedure for a sparse model with different observation noise models.
 from __future__ import division
@@ -124,7 +138,7 @@ class CSparseFA(AExpressionModule):
         if m>=self.nKnown:
             if self.noise=='gauss':
                 YmeanX = self.Z.E1
-            elif self.noise=='drop' or self.noise=='poisson':
+            elif self.noise=='hurdle' or self.noise=='poisson':
                 YmeanX = self.meanX
 
             setMinus = SP.int_(SP.hstack([range(M)[0:m],range(M)[m+1::]]))
@@ -153,7 +167,7 @@ class CSparseFA(AExpressionModule):
         M = self.components
         if self.noise=='gauss':
             YmeanX = self.Z.E1
-        elif self.noise=='drop' or self.noise=='poisson':
+        elif self.noise=='hurdle' or self.noise=='poisson':
             YmeanX = self.meanX
 
         if (m<self.nKnown) or (m in self.iLatentSparse) or (m in self.iLatent):
@@ -256,10 +270,10 @@ class CSparseFA(AExpressionModule):
 
         if self.noise=='gauss':
             self.updateEps()
-        elif self.noise=='drop':
+        elif self.noise=='hurdle':
             self.updateEpsDrop()
 
-        if self.noise=='drop' or self.noise=='poisson':
+        if self.noise=='hurdle' or self.noise=='poisson':
             epsK = self.Eps.E1.copy()#[self.Eps.E1>1/4.]=1/4
             epsK[self.Eps.E1>1/4.]=1/4.
             Xi = SP.dot(self.S.E1,(self.W.C[:, :,0]*self.W.E1).transpose())
@@ -295,17 +309,18 @@ class CSparseFA(AExpressionModule):
         if not isinstance(init_data,AGaussNode):
             raise Exception("initialization is only possible from a GaussNode")
         self.Z = CNodeZ(node=init_data)
+
         #datanode hold the data
         self.dataNode = self.Z
         if self.noise=='poisson':
             self.kappa = 1./4.0 + 0.17*self.Z.E1.max(0)
 
-        if self.noise=='drop':
+        if self.noise=='hurdle':
             self.meanX = self.Z.E1.copy()
             self.isExpressed = (self.Z.E1>0)*1.
         self.numExpressed = SP.sum(self.Z.E1>0,0)
         
-        #known factors
+        #known covariates
         if init_factors!=None and init_factors.has_key('Known'):
             self.nKnown = init_factors['Known'].shape[1]
             self.Known = init_factors['Known']
@@ -322,7 +337,8 @@ class CSparseFA(AExpressionModule):
             self.nHidden = self.components
             self.nKnown = 0
             self.iHidden = list()
-            
+
+        #OS: this part here looks confusing. I don't understand what the variables are. Some more clarity would be good            
         if init_factors!=None and init_factors.has_key('iLatent'):
             self.iLatent = init_factors['iLatent']
             self.nLatent = len(init_factors['iLatent'])
@@ -384,7 +400,7 @@ class CSparseFA(AExpressionModule):
                 self.S.diagSigmaS[:,k] = 1./2
         if self.initType == 'pcaRand':
             random.seed(222)
-            if self.noise == 'drop':
+            if self.noise == 'hurdle':
                 Zstd = self.Z.E1.copy()
                 self.meanZ = Zstd.mean(0)
                 Zstd-=Zstd.mean(0)

@@ -1,10 +1,16 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jan 14 14:46:40 2016
-
-@author: flo
-"""
-#import core.fscLVM as sparseFA
+# Copyright(c) 2016, The f-scLVM developers (Florian Buettner, Oliver Stegle)
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
 
 from sklearn.decomposition import RandomizedPCA,PCA
 import h5py
@@ -18,6 +24,7 @@ import brewer2mpl
 import sys
 sys.path.insert(0,'./../../')
 import cPickle as pickle
+import pdb
 from fscLVM.utils import *
 import fscLVM.core as fscLVM
 
@@ -284,24 +291,58 @@ def load_hdf5(dFile, data_dir='../../../data/'):
     return data
 
 
-def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,doFast=True, FNR=0.001, \
+def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,pruneGenes=False, FPR=0.99, FNR=0.001, \
             noise='gauss', minGenes=20):
+    """
+        Initialize the sparse factor analysis models
+        Y: expression matrix, cells x genes
+        I: indicator  matrix for annotations:  [terms x genes]
+        FNR/FPR: false positive and false negative rate of annotations
+        nHidden:  number of dense unannotated factors fit
+        nHiddenSparse:  number of sparse unannotated factors
+        minGenes: minimum number of genes required per term to retain it
+        pruneGenes: prune genes that are not annotated to a least one factor. This option makes sense if the 
+        key objective is to rank factors rather than the discovery of additional marker genes
+        noise: noise model. gauss (default), poisson, drop (Hurdle noise model)
+    """
+    #check for consistency of input parameters
 
-    terms = terms[SP.sum(I>.5,0)>minGenes]
-    I = I[:,SP.sum(I>.5,0)>minGenes]
-    
-    pi = I.copy()
-    #Set FNR
-    pi[pi<.1] = FNR
-    pi[pi>.1] = 0.99
+    [num_cells,num_genes] = Y.shape
+    num_terms            = I.shape[1]
 
-    #fast option?
-    if doFast==True:
-        idx_genes  = SP.logical_and(SP.sum(pi>.5,1)>0, Y.mean(0)>0.)#SP.any(pi>.5,1)
+    assert I.shape[0]==num_genes, 'annotation needs to be matched to gene input dimension'
+    #OS: check list
+    assert noise in ['gauss','hurdle','poisson'], 'invalid noise model'
+    assert 0<FNR<1, 'FNR is required to be between 0 and 1'
+    assert 0<FNR<1, 'FPR is required to be between 0 and 1'
+
+    #make sure the annotation is boolean
+    I = (I>.5)     
+    #. filter annotation by min number of required genes
+    Iok = I.sum(axis=0)>minGenes
+    terms = terms[Iok]
+    I     = I[:,Iok]
+    num_terms = I.shape[1]
+
+
+    #create initial pi matrix, which corresponds to the effective prior probability of an annotated link
+    pi = SP.zeros([num_genes,num_terms],dtype='float')    
+    #default FNR
+    pi[:] = FNR
+    #active links
+    pi[I] = FPR 
+
+    pdb.set_trace()
+    #prune genes?
+    if pruneGenes==True:
+        #OS: I don't understand the motivation of the second step. This will greatly depend on the normalization
+        #In particular, if the data are zero-mean transformed the result will be garbage. Remove?
+        idx_genes  = SP.logical_and(SP.sum(I,1)>0, Y.mean(0)>0.)
         Y = Y[:,idx_genes]
         pi = pi[idx_genes,:]
 
     #center data for Gaussian observation noise
+    #os: what happens for the dropout noise model with hurdle?
     if noise=='gauss':
         Y-=SP.mean(Y,0)
 
@@ -317,12 +358,14 @@ def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,doFast
 
     terms = SP.hstack([SP.repeat('hidden',nHidden), terms])
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])
-    
-    Ilabel = preTrain(Y, terms, pi, noise='gauss', nFix=None, initType='pcaRand')
+    num_terms += nHidden
+
+   
+    Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=None, initType='pcaRand')
     pi = pi[:,Ilabel]
     terms = terms[Ilabel]    
-    init={'init_data':fscLVM.CGauss(Y),'Pi':pi,'terms':terms, 'noise':'gauss'}
-    FA = fscLVM.CSparseFA(components=pi.shape[1])   
+    init={'init_data':fscLVM.CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
+    FA = fscLVM.CSparseFA(components=num_terms)   
     FA.init(**init)  
     return FA   
 

@@ -1,3 +1,18 @@
+# Copyright(c) 2016, The f-scLVM developers (Florian Buettner, Oliver Stegle)
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
+
 ##BayesNet
 # abstract Basis classes for Variational Bayesian models:
 
@@ -8,13 +23,6 @@ import numpy.linalg as linalg
 import scipy.special as special
 import time
 import pdb
-
-
-
-##TODO
-# 1) we should agree whether node updates take in E1/E2 or not
-#    currently we have a wild mix (see ABernoulli, AGauss)
-# 2) message are current Gauss; separate these out form nodes?
 
 
 def savelog(x):
@@ -114,7 +122,7 @@ class ABernoulliNode(ANode):
         shape = list(S.shape)
         shape.append(1)
         P *= (1/(S+1E-10)).reshape(shape)
-        #expectatoin value is the p(1) which is assumed to tbe in the last column; hence this construction...
+        #expectation value is the p(1) which is assumed to be stored in the last column; hence this construction...
         self.E1 = P.swapaxes(0,-1)[1]
         self.E2 = self.E1
         
@@ -285,7 +293,7 @@ class ABayesNet(ANode):
 
     def getDefaultParameters(self):
         '''getDefaultParameters()
-        - return a dictionary with defaultparameters of the BayesNet class'''
+        - return a dictionary with default parameters of the BayesNet class'''
         dp = {}
         dp['tolerance']   = 1E-4
         dp['forceIterations'] = False

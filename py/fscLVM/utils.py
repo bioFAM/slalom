@@ -332,19 +332,15 @@ def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,pruneG
     #active links
     pi[I] = FPR 
 
-    pdb.set_trace()
     #prune genes?
     if pruneGenes==True:
-        #OS: I don't understand the motivation of the second step. This will greatly depend on the normalization
-        #In particular, if the data are zero-mean transformed the result will be garbage. Remove?
-        idx_genes  = SP.logical_and(SP.sum(I,1)>0, Y.mean(0)>0.)
+        idx_genes  = SP.sum(I,1)>0
         Y = Y[:,idx_genes]
         pi = pi[idx_genes,:]
 
     #center data for Gaussian observation noise
-    #os: what happens for the dropout noise model with hurdle?
     if noise=='gauss':
-        Y-=SP.mean(Y,0)
+        Y-=SP.mean(Y,0)       
 
     #include hidden variables
     if nHiddenSparse>0:
@@ -359,6 +355,12 @@ def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,pruneG
     terms = SP.hstack([SP.repeat('hidden',nHidden), terms])
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])
     num_terms += nHidden
+
+#mean term for non-Gaussian noise models
+    if noise!='gauss':
+        terms = SP.hstack([ 'bias',terms])
+        pi = SP.hstack([SP.ones((Y.shape[1],1))*(1.-1e-10),pi])        
+        num_terms += nHidden
 
    
     Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=None, initType='pcaRand')

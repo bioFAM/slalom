@@ -281,7 +281,20 @@ class CSparseFA(AExpressionModule):
         elif self.noise=='poisson':
             Xi = SP.dot(self.S.E1,(self.W.C[:, :,0]*self.W.E1).transpose())
             self.meanX = Xi - self.fprime(Xi, self.Z.E1)/SP.repeat(self.kappa[:,SP.newaxis],self._N,1).T
-            
+
+    def getNchanged(self):
+        nChanged = SP.sum((self.Pi>.5)!=(self.W.C[:,:,0]>.5), 0)[(self.nLatent+self.nLatentSparse):]*1.0
+        nChangedRel = nChanged/SP.sum((self.Pi>.5), 0)[(self.nLatent+self.nLatentSparse):]
+        return (nChanged, nChangedRel)
+
+    def printDiagnostics(self):
+        (nChanged, nChangedRel) = self.getNchanged()
+        if nChangedRel.max()<1:
+            print 'Maximally ', nChangedRel.max()*100.,'% Genes per factor changed.'
+        else:
+            print 'Maximally ', nChangedRel.max()*100.,'% Genes per factor changed. Re-run with sparse annotated factors.'
+
+
 
 
     def __init__(self,init_data=None,E1=None,E2=None,**parameters):
@@ -333,10 +346,18 @@ class CSparseFA(AExpressionModule):
                 assert self.Known.shape[0] == self._N
                 self.nHidden = self.components-self.nKnown
                 self.iHidden = SP.arange(self.nHidden,self.nHidden+self.nKnown)
+
+        elif terms[0]=='bias':
+            Known =SP.ones((self.Z.E1.shape[0],1)) 
+            self.nKnown = 1 
+            self.nHidden = self.components-self.nKnown  
+            self.iHidden = SP.arange(self.nHidden,self.nHidden+self.nKnown)
         else:
             self.nHidden = self.components
             self.nKnown = 0
             self.iHidden = list()
+
+
 
         #OS: this part here looks confusing. I don't understand what the variables are. Some more clarity would be good            
         if init_factors!=None and init_factors.has_key('iLatent'):

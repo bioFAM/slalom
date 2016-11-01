@@ -19,10 +19,6 @@ install:
 before_script:
 - export PATH="$HOME/miniconda/bin:$PATH"
 - source activate travisci
-- pwd
-- find .
-- cd py
-- python setup.py test
 script:
 - export PATH="$HOME/miniconda/bin:$PATH"
 - source activate travisci

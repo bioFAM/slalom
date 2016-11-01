@@ -1,22 +1,25 @@
-.. fscLVM documentation master file, created by
-   sphinx-quickstart on Tue Nov  1 14:32:47 2016.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+fscLVM's documentation
+======================
 
-Welcome to fscLVM's documentation!
-==================================
+Tutorial
+--------
+
+# BLA
+
+## BKWJ EDJ 
+
+```python
+print("ola")
+```
+
+BLA SECTION
+-----------
+
+.. autofunction:: fscLVM.initFA
+
+bla
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-

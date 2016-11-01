@@ -293,22 +293,55 @@ def load_hdf5(dFile, data_dir='../../../data/'):
 
 def initFA(Y, terms, I, annotation='MSigDB', nHidden=3, nHiddenSparse = 0,pruneGenes=False, FPR=0.99, FNR=0.001, \
             noise='gauss', minGenes=20):
-    """
-        Initialize the sparse factor analysis models
-        Y: expression matrix, cells x genes
-        I: indicator  matrix for annotations:  [terms x genes]
-        FNR/FPR: false positive and false negative rate of annotations
-        nHidden:  number of dense unannotated factors fit
-        nHiddenSparse:  number of sparse unannotated factors
-        minGenes: minimum number of genes required per term to retain it
-        pruneGenes: prune genes that are not annotated to a least one factor. This option makes sense if the 
-        key objective is to rank factors rather than the discovery of additional marker genes
-        noise: noise model. gauss (default), poisson, drop (Hurdle noise model)
-    """
-    #check for consistency of input parameters
+    """Association between genetic markers and phenotype for continuous traits.
 
+    Matrix `X` shall contain the genetic markers (e.g., number of minor
+    alleles) with rows and columns representing samples and genetic markers,
+    respectively.
+    The user must specify only one of the parameters `G` and `K` for defining
+    the genetic background.
+    Let :math:`N` be the sample size, :math:`S` the number of covariates,
+    :math:`P_c` the number of genetic markers to be tested, and :math:`P_b`
+    the number of genetic markers used for Kinship estimation.
+
+    Args:
+        Y (array_like): Phenotype described by the number of
+                                 successes, as non-negative integers.
+                                 Dimension (:math:`N\\times 0`).
+        ntrials    (array_like): Phenotype described by the number of
+                                 trials, as positive integers. Dimension
+                                 (:math:`N\\times 0`).
+        X          (array_like): Candidate genetic markers (or any other
+                                 type of explanatory variable) whose
+                                 association with the phenotype will be
+                                 tested. Dimension (:math:`N\\times P_c`).
+        G          (array_like): Genetic markers matrix used internally for
+                                 kinship estimation. Dimension
+                                 (:math:`N\\times P_b`).
+        K          (array_like): Kinship matrix. Dimension
+                                 (:math:`N\\times N`).
+        covariates (array_like): Covariates. Default is an offset.
+                                 Dimension (:math:`N\\times S`).
+        progress         (bool): Shows progress. Defaults to `True`.
+
+    Returns:
+        A :class:`lim.genetics.qtl.LikelihoodRatioTest` instance.
+    """
+
+    # Initialize the sparse factor analysis models
+    # Y: expression matrix, cells x genes
+    # I: indicator  matrix for annotations:  [terms x genes]
+    # FNR/FPR: false positive and false negative rate of annotations
+    # nHidden:  number of dense unannotated factors fit
+    # nHiddenSparse:  number of sparse unannotated factors
+    # minGenes: minimum number of genes required per term to retain it
+    # pruneGenes: prune genes that are not annotated to a least one factor. This option makes sense if the 
+    # key objective is to rank factors rather than the discovery of additional marker genes
+    # noise: noise model. gauss (default), poisson, drop (Hurdle noise model)
+    
+    #check for consistency of input parameters
     [num_cells,num_genes] = Y.shape
-    num_terms            = I.shape[1]
+    num_terms             = I.shape[1]
 
     assert I.shape[0]==num_genes, 'annotation needs to be matched to gene input dimension'
     #OS: check list

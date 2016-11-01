@@ -12,14 +12,10 @@ def setup_package():
    os.chdir(src_path)
    sys.path.insert(0, src_path)
 
-   needs_pytest = {'pytest', 'test', 'ptr'}.intersection(sys.argv)
-   pytest_runner = ['pytest-runner>=2.7'] if needs_pytest else []
 
-   setup_requires = [''] + pytest_runner
-   install_requires = [
-       'pytest>=2.9', 'scipy>=0.17', 'numpy>=1.10',
-        'h5py>=2.6'
-   ]
+   setup_requires = ['']
+   install_requires = ['scipy>=0.17', 'numpy>=1.10', 'h5py>=2.5',
+                       'matplotlib>=1.5','brewer2mpl>=1.4']
    tests_require = install_requires
 
    metadata = dict(

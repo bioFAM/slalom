@@ -3,7 +3,7 @@
 
 ##What is f-scLVM?
 
-scLVM is a scalable modelling framework for single-cell RNA-seq data that can be used to dissect and model single-cell transcriptome heterogeneity, thereby allowing to identify biological drivers of cell-to-cell variability and model confounding factors.
+f-scLVM is a scalable modelling framework for single-cell RNA-seq data that can be used to dissect and model single-cell transcriptome heterogeneity, thereby allowing to identify biological drivers of cell-to-cell variability and model confounding factors.
 
 
 Software by Florian Buettner and Oliver Stegle. f-scLVM is explained in  detail in the accompanying publication [1]. 
@@ -15,7 +15,9 @@ Observed heterogeneity in single-cell profiling data is multi-factorial. f-scLVM
 ##Installation requirements:
 
 f-scLVM requires Python 2.7 with
-  - scipy, h5py, numpy, pylab, scikit-learn
+  - scipy, h5py, numpy, pylab, matplotlib, scikit-learn, re
+  
+f-scLVM can be installed via pip with `pip install fscLVM`.
 
 ##How to use f-scLVM?
 The current software version should be considered as beta. More extensive documentation, tutorials and examples will be available soon. 

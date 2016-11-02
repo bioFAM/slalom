@@ -61,7 +61,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'fscLVM'
-copyright = u'2016, Florian Buettner'
+copyright = u'2016, Florian Buettner and Oliver Stegle'
 author = u'Florian Buettner'
 
 # The version info for the project you're documenting, acts as replacement for

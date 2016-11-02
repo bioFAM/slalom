@@ -302,8 +302,9 @@ class ABayesNet(ANode):
         dp['nIterations'] = 2000
         dp['noise'] = 'gauss'
         dp['shuffle']   = True
-        dp['saveInit']   = True
-        dp['nScale']   = 100.0        
+        dp['saveInit']   = False
+        dp['nScale']   = 100.0
+        dp['idx_genes']   = None        
         return dp
 
     def __init__(self,parameters=None,nodes={}, schedule=[]):

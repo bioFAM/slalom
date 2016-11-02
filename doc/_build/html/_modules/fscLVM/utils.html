@@ -64,6 +64,7 @@
 <span class="kn">from</span> <span class="nn">sklearn.decomposition</span> <span class="k">import</span> <span class="n">RandomizedPCA</span><span class="p">,</span><span class="n">PCA</span>
 <span class="kn">import</span> <span class="nn">h5py</span>
 <span class="kn">import</span> <span class="nn">scipy</span> <span class="k">as</span> <span class="nn">SP</span>
+<span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span> <span class="k">as</span> <span class="nn">mpl</span>
 <span class="kn">import</span> <span class="nn">matplotlib.lines</span> <span class="k">as</span> <span class="nn">mlines</span>
 <span class="n">mpl</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;Agg&#39;</span><span class="p">)</span>
@@ -71,15 +72,18 @@
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">brewer2mpl</span>
 <span class="kn">import</span> <span class="nn">sys</span>
-<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="s1">&#39;./../../&#39;</span><span class="p">)</span>
-<span class="kn">import</span> <span class="nn">cPickle</span> <span class="k">as</span> <span class="nn">pickle</span>
-<span class="kn">import</span> <span class="nn">pdb</span>
-<span class="kn">from</span> <span class="nn">fscLVM.utils</span> <span class="k">import</span> <span class="o">*</span>
-<span class="kn">import</span> <span class="nn">fscLVM.core</span> <span class="k">as</span> <span class="nn">fscLVM</span>
+<span class="c1">#from fscLVM.utils import *</span>
+<span class="kn">import</span> <span class="nn">fscLVM</span>
+<span class="kn">from</span> <span class="nn">bayesnet.vbfa</span> <span class="k">import</span> <span class="o">*</span>
 
 <span class="n">data_dir</span> <span class="o">=</span> <span class="s1">&#39;../../../data/&#39;</span>
 <span class="n">out_base</span> <span class="o">=</span> <span class="s1">&#39;./../results/&#39;</span>
 
+<span class="k">def</span> <span class="nf">simpleaxis</span><span class="p">(</span><span class="n">ax</span><span class="p">):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">spines</span><span class="p">[</span><span class="s1">&#39;top&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">spines</span><span class="p">[</span><span class="s1">&#39;right&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">get_xaxis</span><span class="p">()</span><span class="o">.</span><span class="n">tick_bottom</span><span class="p">()</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">get_yaxis</span><span class="p">()</span><span class="o">.</span><span class="n">tick_left</span><span class="p">()</span>
 
 
 <span class="k">def</span> <span class="nf">mad</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
@@ -90,29 +94,57 @@
     <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">SP</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">SP</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">*</span><span class="n">x</span><span class="o">/</span><span class="mf">2.</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">x</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
     
     
-<span class="k">def</span> <span class="nf">saveFA</span><span class="p">(</span><span class="n">FA</span><span class="p">,</span> <span class="n">idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Ycorr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Ycorr_lat</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">F</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Fcorr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="n">MAD</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span><span class="p">)</span>
-    <span class="n">alpha02</span> <span class="o">=</span> <span class="p">(</span><span class="n">MAD</span><span class="o">&gt;.</span><span class="mi">5</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">FA</span><span class="o">.</span><span class="n">Alpha</span><span class="o">.</span><span class="n">E1</span><span class="p">))</span>
-    <span class="n">out_file</span> <span class="o">=</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">FA</span><span class="o">.</span><span class="n">out_name</span><span class="o">+</span><span class="s1">&#39;_it_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">FA</span><span class="o">.</span><span class="n">iterationCount</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;.hdf5&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>    
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;alphaRaw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">Alpha</span><span class="o">.</span><span class="n">E1</span>
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;alpha02&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">alpha02</span>  
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;W&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">E1</span>
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Eps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">Eps</span><span class="o">.</span><span class="n">E1</span>
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;S&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span>        
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Gamma&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">C</span><span class="p">[:,:,</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;pi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">Pi</span>
-    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;terms&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">terms</span>
-    <span class="k">if</span> <span class="n">idx</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;idx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">idx</span>
-    <span class="k">if</span> <span class="n">Ycorr</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Ycorr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Ycorr</span>
-    <span class="k">if</span> <span class="n">Ycorr_lat</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Ycorr_lat&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Ycorr_lat</span> 
-    <span class="k">if</span> <span class="n">Fcorr</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Fcorr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Fcorr</span>
-    <span class="k">if</span> <span class="n">F</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;F&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">F</span>               
-    <span class="n">out_file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>    
+<div class="viewcode-block" id="saveFA"><a class="viewcode-back" href="../../index.html#fscLVM.saveFA">[docs]</a><span class="k">def</span> <span class="nf">saveFA</span><span class="p">(</span><span class="n">FA</span><span class="p">,</span> <span class="n">out_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">saveF</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">out_dir</span><span class="o">=</span><span class="s1">&#39;./&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Saves output of fscLVM.CSparseFA object</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function</span>
+<span class="sd">        out_name                         (str): Name of hdf file to save the model to. Default is `None&#39; for which a filename is created automatically.</span>
+<span class="sd">        saveF                           (bool): Boolean variable indicating whether to save the imputed expression space.</span>
+<span class="sd">        out_dir                          (str): data directory where to save the outpout</span>
+<span class="sd">                                                                      </span>
+<span class="sd">    &quot;&quot;&quot;</span>    
+
+    <span class="k">if</span> <span class="n">out_name</span><span class="o">==</span><span class="kc">None</span><span class="p">:</span>
+        <span class="n">out_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span><span class="n">FA</span><span class="o">.</span><span class="n">getName</span><span class="p">()</span><span class="o">+</span><span class="s1">&#39;.hdf5&#39;</span><span class="p">)</span>
+    <span class="n">out_file</span> <span class="o">=</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">out_name</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>    
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;relevance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getRelevance</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;W&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getW</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;X&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getFactors</span><span class="p">()</span>     
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Z&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getZ</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getAnnotations</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;terms&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getTerms</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;idx_genes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">idx_genes</span>
+    <span class="k">if</span> <span class="n">saveF</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span>
+        <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;F&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getF</span><span class="p">()</span>
+              
+    <span class="n">out_file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>    </div>
+
+
+
+<div class="viewcode-block" id="dumpFA"><a class="viewcode-back" href="../../index.html#fscLVM.dumpFA">[docs]</a><span class="k">def</span> <span class="nf">dumpFA</span><span class="p">(</span><span class="n">FA</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Dumps output of fscLVM.CSparseFA object in a dictionary</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function</span>
+<span class="sd">                                                                      </span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dictionary with results</span>
+<span class="sd">    &quot;&quot;&quot;</span>    
+
+    <span class="n">out_file</span> <span class="o">=</span><span class="p">{}</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;relevance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getRelevance</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;W&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getW</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;X&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getFactors</span><span class="p">()</span>     
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;Z&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getZ</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;I&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getAnnotations</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;terms&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getTerms</span><span class="p">()</span>
+    <span class="n">out_file</span><span class="p">[</span><span class="s1">&#39;idx_genes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">idx_genes</span>
+              
+    <span class="k">return</span> <span class="n">out_file</span>      </div>
+
+
     
     
     
@@ -124,11 +156,28 @@
     <span class="k">return</span> <span class="n">res</span>
     
     
-<span class="k">def</span> <span class="nf">plotFactors</span><span class="p">(</span><span class="n">idx1</span><span class="p">,</span> <span class="n">idx2</span><span class="p">,</span><span class="n">FA</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">X</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="n">lab</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cols</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">isCont</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">madFilter</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
+<div class="viewcode-block" id="plotFactors"><a class="viewcode-back" href="../../index.html#fscLVM.plotFactors">[docs]</a><span class="k">def</span> <span class="nf">plotFactors</span><span class="p">(</span><span class="n">FA</span><span class="p">,</span><span class="n">idx1</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">idx2</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">X</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="n">lab</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cols</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">isCont</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">madFilter</span><span class="o">=</span><span class="mf">0.4</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Scatter plot of 2 factors</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function</span>
+<span class="sd">        idx1                    (int): Index of first factor to be plotted</span>
+<span class="sd">        idx2                    (int): Index of second factor to be plotted</span>
+<span class="sd">        lab             (vector_like): Vector of labels for each data point</span>
+<span class="sd">        isCont                 (bool): Boolean variable indicating whether labels should be interpreted as discrete or continuous</span>
+<span class="sd">        cols            (vector_like): Vector of colors. Should be the same length as unique labels. Default is `None`, </span>
+<span class="sd">                                       then the `brewer2mpl` </span>
+<span class="sd">        madFilter             (float): Filter factors by this mean absolute deviation to exclude outliers. </span>
+<span class="sd">                                        For large datsets this can be set to 0.                                           </span>
+<span class="sd">     &quot;&quot;&quot;</span>       
+
     <span class="k">if</span> <span class="n">FA</span><span class="o">!=</span><span class="kc">None</span><span class="p">:</span>
         <span class="nb">print</span> <span class="n">FA</span>
+        <span class="n">S</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getFactors</span><span class="p">()</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getRelevance</span><span class="p">()</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getTerms</span><span class="p">()</span>
         <span class="n">MAD</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span><span class="p">)</span>
-        <span class="n">alpha</span> <span class="o">=</span> <span class="p">(</span><span class="n">MAD</span><span class="o">&gt;</span><span class="n">madFilter</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">FA</span><span class="o">.</span><span class="n">Alpha</span><span class="o">.</span><span class="n">E1</span><span class="p">))</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="p">(</span><span class="n">MAD</span><span class="o">&gt;</span><span class="n">madFilter</span><span class="p">)</span><span class="o">*</span><span class="n">alpha</span>
         <span class="n">idxF</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>    
         <span class="n">X1</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span><span class="p">[:,</span><span class="n">idxF</span><span class="p">[</span><span class="n">idx1</span><span class="p">]]</span>
         <span class="n">X2</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span><span class="p">[:,</span><span class="n">idxF</span><span class="p">[</span><span class="n">idx2</span><span class="p">]]</span>
@@ -156,22 +205,37 @@
                               <span class="n">markersize</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">uLab</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>     
         <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">handles</span><span class="o">=</span><span class="n">lList</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">X1</span><span class="p">,</span> <span class="n">X2</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">lab</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lab</span><span class="o">!=</span><span class="kc">None</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">X1</span><span class="p">,</span> <span class="n">X2</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">lab</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">X1</span><span class="p">,</span> <span class="n">X2</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
         <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">idx1</span><span class="p">])</span>
         <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">idx2</span><span class="p">])</span>
-    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
 
 
     
-<span class="k">def</span> <span class="nf">plotTerms</span><span class="p">(</span><span class="n">FA</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">madFilter</span><span class="o">=.</span><span class="mi">5</span><span class="p">):</span>
-    <span class="k">assert</span> <span class="n">terms</span><span class="o">!=</span><span class="kc">None</span>
-<span class="c1">#        print &#39;terms need to be same length as relevance score&#39;    </span>
-    <span class="k">if</span> <span class="n">FA</span><span class="o">!=</span><span class="kc">None</span><span class="p">:</span>
-        <span class="n">S</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span>
-        <span class="n">alpha</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">Alpha</span><span class="o">.</span><span class="n">E1</span>
-    <span class="n">MAD</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">S</span><span class="p">)</span>
-    <span class="n">alpha</span> <span class="o">=</span> <span class="p">(</span><span class="n">MAD</span><span class="o">&gt;</span><span class="n">madFilter</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span>
+<div class="viewcode-block" id="plotTerms"><a class="viewcode-back" href="../../index.html#fscLVM.plotTerms">[docs]</a><span class="k">def</span> <span class="nf">plotTerms</span><span class="p">(</span><span class="n">FA</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">madFilter</span><span class="o">=.</span><span class="mi">4</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Plot terms and their respective relevance</span>
 
+<span class="sd">    Args:</span>
+<span class="sd">        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function</span>
+<span class="sd">        madFilter          (float)           : Filter factors by this mean absolute deviation to exclude outliers. </span>
+<span class="sd">                                                For large datsets this can be set to 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>    
+
+
+    <span class="k">if</span> <span class="n">FA</span><span class="o">!=</span><span class="kc">None</span><span class="p">:</span>
+        <span class="n">S</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getFactors</span><span class="p">()</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getRelevance</span><span class="p">()</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getTerms</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">S</span><span class="o">!=</span><span class="kc">None</span>
+        <span class="k">assert</span> <span class="n">alpha</span><span class="o">!=</span><span class="kc">None</span>
+        <span class="k">assert</span> <span class="n">terms</span><span class="o">!=</span><span class="kc">None</span>
+
+    <span class="n">MAD</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">S</span><span class="p">)</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="p">(</span><span class="n">MAD</span><span class="o">&gt;</span><span class="n">madFilter</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
                  
     <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
     <span class="n">Y</span> <span class="o">=</span> <span class="n">alpha</span><span class="p">[</span><span class="n">idx_sort</span><span class="p">]</span>
@@ -179,45 +243,184 @@
     <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">,</span><span class="n">markersize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">terms</span><span class="p">[</span><span class="n">idx_sort</span><span class="p">],</span> <span class="n">size</span><span class="o">=</span><span class="s1">&#39;small&#39;</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">)</span>    
     <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Relevance score&quot;</span><span class="p">)</span>
-    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+    
     
 
+<div class="viewcode-block" id="plotFA"><a class="viewcode-back" href="../../index.html#fscLVM.plotFA">[docs]</a><span class="k">def</span> <span class="nf">plotFA</span><span class="p">(</span><span class="n">FA</span><span class="p">,</span><span class="n">Nactive</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span><span class="n">stacked</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="s1">&#39;MSigDB&#39;</span><span class="p">,</span> <span class="n">madFilter</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">unannotated</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Plot results of f-scLVM</span>
 
-<span class="k">def</span> <span class="nf">getF</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span><span class="n">FA</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">W</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Eps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_latent</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="c1">#assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]</span>
-    <span class="k">if</span> <span class="n">FA</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">S</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span>
-        <span class="n">W</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">E1</span>
-        <span class="n">C</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">C</span><span class="p">[:,:,</span><span class="mi">0</span><span class="p">]</span>  
+<span class="sd">    Identified factors and corresponding gene set size ordered by relevance (white = low relevance; black = high relevance). </span>
+<span class="sd">    Top panel: Gene set augmentation, showing the number of genes added (red) and removed (blue) by the model for each factor.</span>
 
-    <span class="n">isExpressed</span> <span class="o">=</span> <span class="p">(</span><span class="n">Y</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">)</span><span class="o">*</span><span class="mf">1.</span>
-    <span class="n">F</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> 
+<span class="sd">    Args:</span>
+<span class="sd">        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function</span>
+<span class="sd">        Nactive                                  (int): Numer of terms to be plotted</span>
+<span class="sd">        stacked                                 (bool): Boolean variable indicating whether bars should be stacked</span>
+<span class="sd">        db                                      (str): Name of database used, eihter &#39;MSigDB&#39; or &#39;REACTOME&#39;</span>
+<span class="sd">        madFilter                              (float): Filter factors by this mean absolute deviation to exclude outliers. </span>
+<span class="sd">                                                        For large datsets this can be set to 0.</span>
+<span class="sd">        unannotated                             (bool): Indicates whether also unannotated factors should be plotted. Defaults to False.</span>
 
-
-    <span class="n">epsK</span> <span class="o">=</span> <span class="n">Eps</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="c1">#[self.Eps.E1&gt;1/4.]=1/4</span>
-    <span class="n">epsK</span><span class="p">[</span><span class="n">Eps</span><span class="o">&gt;</span><span class="mi">1</span><span class="o">/</span><span class="mf">4.</span><span class="p">]</span><span class="o">=</span><span class="mi">1</span><span class="o">/</span><span class="mf">4.</span>
-    <span class="n">Xi</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">S</span><span class="p">,(</span><span class="n">C</span><span class="o">*</span><span class="n">W</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">())</span>
-    <span class="n">F</span><span class="p">[</span><span class="n">isExpressed</span><span class="o">==</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">Xi</span> <span class="o">-</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="p">(</span><span class="mf">1.</span><span class="o">+</span><span class="n">SP</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">Xi</span><span class="p">)))</span><span class="o">/</span><span class="n">epsK</span><span class="p">)[</span><span class="n">isExpressed</span><span class="o">==</span><span class="mi">0</span><span class="p">]</span>
-
-    <span class="k">return</span> <span class="n">F</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
 
-<span class="k">def</span> <span class="nf">regressOut</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span><span class="n">idx</span><span class="p">,</span> <span class="n">FA</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">W</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_latent</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="c1">#assert Y.shape[1] == FA.W.E1.shape[0] and Y.shape[0] == FA.W.E1.shape[0]</span>
-    <span class="k">if</span> <span class="n">FA</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">S</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span>
-        <span class="n">W</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">E1</span>
-        <span class="n">C</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">C</span><span class="p">[:,:,</span><span class="mi">0</span><span class="p">]</span>        
-    <span class="n">idx</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>  
-    <span class="n">isOn</span> <span class="o">=</span>  <span class="p">(</span><span class="n">C</span><span class="o">&gt;.</span><span class="mi">5</span><span class="p">)</span><span class="o">*</span><span class="mf">1.0</span>    
-    <span class="k">if</span> <span class="n">use_latent</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
- 
-        <span class="n">Ycorr</span> <span class="o">=</span> <span class="n">Y</span><span class="o">-</span><span class="n">SP</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">S</span><span class="p">[:,</span><span class="n">idx</span><span class="p">],</span> <span class="p">(</span><span class="n">isOn</span><span class="p">[:,</span><span class="n">idx</span><span class="p">]</span><span class="o">*</span><span class="n">W</span><span class="p">[:,</span><span class="n">idx</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">pltparams</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="s1">&#39;pdf&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;axes.labelsize&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span>
+              <span class="s1">&#39;font.size&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span>
+              <span class="s1">&#39;legend.fontsize&#39;</span><span class="p">:</span> <span class="mi">13</span><span class="p">,</span>
+              <span class="s1">&#39;xtick.labelsize&#39;</span><span class="p">:</span> <span class="mi">14</span><span class="p">,</span>
+              <span class="s1">&#39;ytick.labelsize&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span>
+              <span class="s1">&#39;text.usetex&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+              
+              
+    <span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pltparams</span><span class="p">)</span>
+
+    <span class="n">pattern_hidden</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">&#39;hidden*&#39;</span><span class="p">)</span>
+    <span class="n">pattern_bias</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">&#39;bias&#39;</span><span class="p">)</span>
+
+
+    <span class="k">if</span> <span class="n">db</span><span class="o">==</span><span class="s1">&#39;REACTOME&#39;</span><span class="p">:</span>
+        <span class="n">substring</span> <span class="o">=</span> <span class="s1">&#39;REACTOME_&#39;</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">idx_use</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">setxor1d</span><span class="p">(</span><span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span><span class="n">idx</span><span class="p">)</span>
-        <span class="n">Ycorr</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">S</span><span class="p">[:,</span><span class="n">idx_use</span><span class="p">],</span> <span class="p">(</span><span class="n">isOn</span><span class="p">[:,</span><span class="n">idx_use</span><span class="p">]</span><span class="o">*</span><span class="n">W</span><span class="p">[:,</span><span class="n">idx_use</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>    
-    <span class="k">return</span> <span class="n">Ycorr</span>
+        <span class="n">substring</span><span class="o">=</span><span class="s1">&#39;&#39;</span>
+
+    <span class="n">terms</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getTerms</span><span class="p">()</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getFactors</span><span class="p">()</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getAnnotations</span><span class="p">(</span><span class="n">unannotated</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getZ</span><span class="p">()</span>
+    <span class="n">rel</span> <span class="o">=</span> <span class="n">FA</span><span class="o">.</span><span class="n">getRelevance</span><span class="p">()</span>
+
+    <span class="n">Ihidden</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pattern_hidden</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">term</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">])</span>
+    <span class="n">Ibias</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pattern_bias</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">term</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">])</span>
+
+
+    <span class="k">if</span> <span class="n">unannotated</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+        <span class="n">iUse</span> <span class="o">=</span> <span class="o">~</span><span class="n">Ihidden</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">Ibias</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">iUse</span> <span class="o">=</span> <span class="o">~</span><span class="n">Ibias</span>        
+
+    <span class="n">Iprior</span>     <span class="o">=</span> <span class="p">(</span><span class="n">I</span><span class="p">[:,</span><span class="n">iUse</span><span class="p">])</span>
+    <span class="n">Iposterior</span> <span class="o">=</span> <span class="p">(</span><span class="n">Z</span><span class="p">[:,</span><span class="n">iUse</span><span class="p">]</span><span class="o">&gt;</span><span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">MAD</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span><span class="n">iUse</span><span class="p">])</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="p">(</span><span class="n">MAD</span><span class="o">&gt;</span><span class="n">madFilter</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">rel</span><span class="p">)[</span><span class="n">iUse</span><span class="p">]</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="n">terms</span><span class="p">[</span><span class="n">iUse</span><span class="p">]</span>
+
+    <span class="n">Nactive</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">SP</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">R</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">),</span><span class="n">Nactive</span><span class="p">)</span>
+
+    <span class="c1">#terms change,s etc. </span>
+    <span class="n">Nprior</span> <span class="o">=</span> <span class="n">Iprior</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="c1">#gains</span>
+    <span class="n">Ngain</span>  <span class="o">=</span> <span class="p">(</span><span class="n">Iposterior</span> <span class="o">&amp;</span> <span class="p">(</span><span class="o">~</span><span class="n">Iprior</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="c1">#loss</span>
+    <span class="n">Nloss</span>  <span class="o">=</span> <span class="p">((</span><span class="o">~</span><span class="n">Iposterior</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">Iprior</span><span class="p">)))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1">#sort terms by relevance</span>
+    <span class="n">Iactive</span> <span class="o">=</span> <span class="n">R</span><span class="o">.</span><span class="n">argsort</span><span class="p">()[::</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="n">Nactive</span><span class="p">]</span>
+    <span class="n">RM</span> <span class="o">=</span> <span class="n">R</span><span class="p">[</span><span class="n">Iactive</span><span class="p">,</span><span class="n">SP</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+    <span class="n">xticks_range</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Nactive</span><span class="p">)</span>
+    <span class="n">terms</span><span class="p">[</span><span class="n">terms</span><span class="o">==</span><span class="s1">&#39;hidden&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">substring</span><span class="o">+</span><span class="s1">&#39;Unannotated&#39;</span>
+    <span class="n">terms</span><span class="p">[</span><span class="n">terms</span><span class="o">==</span><span class="s1">&#39;hiddenSparse&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">substring</span><span class="o">+</span><span class="s1">&#39;Unannotated-sparse&#39;</span>
+    <span class="n">xticks_text</span>  <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">Iactive</span><span class="p">])</span>
+
+
+    <span class="n">xticks_text</span> <span class="o">=</span> <span class="p">[</span><span class="n">terms</span><span class="p">[</span><span class="n">terms</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">substring</span><span class="p">)</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">substring</span><span class="p">):</span><span class="mi">30</span><span class="p">]</span> <span class="k">for</span> <span class="n">terms</span> <span class="ow">in</span> <span class="n">xticks_text</span><span class="p">]</span>
+    <span class="n">xticks_text</span> <span class="o">=</span> <span class="p">[</span><span class="n">terms</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">terms</span> <span class="ow">in</span> <span class="n">xticks_text</span><span class="p">]</span>
+
+
+    <span class="n">n_gain</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n_loss</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">n_prior</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">xrange</span><span class="p">(</span><span class="n">Nactive</span><span class="p">):</span>
+        <span class="n">n_gain</span> <span class="o">+=</span> <span class="p">[</span><span class="n">Ngain</span><span class="p">[</span><span class="n">Iactive</span><span class="p">[</span><span class="n">i</span><span class="p">]]]</span>
+        <span class="n">n_loss</span> <span class="o">+=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.0</span><span class="o">*</span><span class="n">Nloss</span><span class="p">[</span><span class="n">Iactive</span><span class="p">[</span><span class="n">i</span><span class="p">]]]</span>
+        <span class="n">n_prior</span> <span class="o">+=</span> <span class="p">[</span><span class="n">Nprior</span><span class="p">[</span><span class="n">Iactive</span><span class="p">[</span><span class="n">i</span><span class="p">]]]</span>
+
+
+    <span class="n">width</span> <span class="o">=</span> <span class="mf">0.6</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Nactive</span><span class="p">)</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.</span><span class="o">-</span><span class="n">width</span><span class="p">)</span><span class="o">/</span><span class="mf">2.</span>
     
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">subplots_adjust</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
+
+    <span class="n">gs</span> <span class="o">=</span> <span class="n">mpl</span><span class="o">.</span><span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpec</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span><span class="n">height_ratios</span><span class="o">=</span><span class="p">[</span><span class="mf">2.</span><span class="p">,</span><span class="mf">1.</span><span class="p">],</span><span class="n">width_ratios</span><span class="o">=</span><span class="p">[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">0.05</span><span class="p">])</span>
+    <span class="n">gs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">hspace</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">)</span>
+
+    <span class="c1">#fig.text(0.06, 0.6, &#39;Number of annotated genes&#39;, ha=&#39;center&#39;, va=&#39;center&#39;, rotation=&#39;vertical&#39;, fontsize=17)</span>
+
+    <span class="c1">#################################################################################</span>
+    <span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">simpleaxis</span><span class="p">(</span><span class="n">ax1</span><span class="p">)</span>
+    <span class="n">ax1</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Active pathways&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+    <span class="n">ax1</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Gene set size&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mf">13.5</span><span class="p">)</span>
+    <span class="c1">#im = ax1.imshow(SP.append(RM.T,[[0]],axis=1),origin=[0,0],interpolation=&#39;nearest&#39;,cmap=&#39;Greys&#39;,aspect=&#39;auto&#39;)</span>
+    
+    <span class="n">minima</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">maxima</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">RM</span><span class="p">)</span>
+
+    <span class="n">norm</span> <span class="o">=</span> <span class="n">mpl</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">minima</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">maxima</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">ScalarMappable</span><span class="p">(</span><span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;Greys&#39;</span><span class="p">)</span>
+    
+    <span class="n">colors</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">RM</span><span class="o">.</span><span class="n">flatten</span><span class="p">():</span>
+        <span class="n">colors</span> <span class="o">+=</span> <span class="p">[</span><span class="n">mapper</span><span class="o">.</span><span class="n">to_rgba</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span>
+
+    <span class="c1">#colors = []</span>
+    <span class="c1">#for i in xrange(RM.shape[0]):</span>
+    <span class="c1">#    colors += [im.cmap(im.norm(RM[i]))[0,:-1]]</span>
+
+    <span class="n">y_max</span> <span class="o">=</span> <span class="n">Nprior</span><span class="p">[</span><span class="n">Iactive</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="mf">100.</span>
+
+    <span class="n">bar_rel_importance</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Nactive</span><span class="p">)</span><span class="o">-</span><span class="mf">0.5</span> <span class="p">,</span><span class="n">width</span><span class="o">=</span><span class="mf">1.05</span><span class="p">,</span><span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="n">y_max</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">n_prior</span><span class="p">),</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">,</span><span class="n">log</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">edgecolor</span> <span class="o">=</span> <span class="s1">&#39;none&#39;</span><span class="p">)</span>
+    <span class="n">bar_annotated</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span><span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span><span class="n">height</span><span class="o">=</span><span class="n">n_prior</span><span class="p">,</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">,</span><span class="n">log</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span> <span class="n">edgecolor</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">)</span>
+
+    <span class="n">ax1</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span><span class="n">y_max</span><span class="p">])</span>
+    <span class="n">ax1</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="n">Nactive</span><span class="p">])</span>
+    <span class="c1">#ax1.set_yticks([])</span>
+    <span class="c1">#ax1.set_yscale(&#39;log&#39;)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">xticks_range</span><span class="p">,</span><span class="n">xticks_text</span><span class="p">,</span><span class="n">rotation</span><span class="o">=</span><span class="mi">45</span><span class="p">,</span><span class="n">fontsize</span> <span class="o">=</span> <span class="mi">14</span><span class="p">,</span><span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+
+
+    <span class="n">color_bar_ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="n">mpl</span><span class="o">.</span><span class="n">colorbar</span><span class="o">.</span><span class="n">ColorbarBase</span><span class="p">(</span><span class="n">color_bar_ax</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;Greys&#39;</span><span class="p">,</span><span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">,</span><span class="n">orientation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span><span class="n">ticks</span><span class="o">=</span><span class="p">[</span><span class="n">minima</span><span class="p">,</span><span class="n">maxima</span><span class="p">])</span>
+
+    <span class="c1">#color_bar = fig.colorbar(im, cax=color_bar_ax,ticks=[0., RM.max()])</span>
+    <span class="n">color_bar_ax</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+    <span class="c1">#color_bar_ax.set_yticklabels([0,round(RM.max(),3)])</span>
+    <span class="c1">#color_bar_ax.set_ylabel(&#39;Rel. importance&#39;)</span>
+    <span class="c1">#color_bar.outline.set_visible(False)</span>
+    <span class="c1">#################################################################################</span>
+
+    <span class="n">ax0</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span><span class="n">sharex</span><span class="o">=</span><span class="n">ax1</span><span class="p">)</span>
+    <span class="n">simpleaxis</span><span class="p">(</span><span class="n">ax0</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">stacked</span><span class="p">:</span>
+        <span class="n">bar_gain</span> <span class="o">=</span> <span class="n">ax0</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span><span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span><span class="n">height</span><span class="o">=</span><span class="n">n_gain</span><span class="p">,</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;#861608&#39;</span><span class="p">)</span>
+        <span class="n">bar_loss</span> <span class="o">=</span> <span class="n">ax0</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span><span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span><span class="n">height</span><span class="o">=</span><span class="n">n_loss</span><span class="p">,</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;#0c09a0&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span> 
+        <span class="n">bar_gain</span> <span class="o">=</span> <span class="n">ax0</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Nactive</span><span class="p">)</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span><span class="n">width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span><span class="n">height</span><span class="o">=</span><span class="n">n_gain</span><span class="p">,</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;#861608&#39;</span><span class="p">)</span>
+        <span class="n">bar_loss</span> <span class="o">=</span> <span class="n">ax0</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Nactive</span><span class="p">),</span><span class="n">width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span><span class="n">height</span><span class="o">=</span><span class="n">n_loss</span><span class="p">,</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;#0c09a0&#39;</span><span class="p">)</span>
+
+    <span class="c1">#figure out range to make ylim symmatrix</span>
+    <span class="n">ax0</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+
+    <span class="c1">#ax0.set_yscale(&#39;symlog&#39;)</span>
+    <span class="n">gap</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">n_gain</span><span class="p">),</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">n_loss</span><span class="p">)))</span><span class="o">/</span><span class="mf">4.</span><span class="p">)</span>
+    <span class="n">y_max</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">n_gain</span><span class="p">)</span><span class="o">/</span><span class="n">gap</span><span class="p">)</span>
+    <span class="n">y_min</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">n_loss</span><span class="p">)</span><span class="o">/</span><span class="n">gap</span><span class="p">)</span>
+    <span class="n">yticks</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">y_min</span><span class="o">*</span><span class="n">gap</span><span class="p">,</span><span class="n">y_max</span><span class="o">*</span><span class="n">gap</span><span class="p">,</span><span class="n">gap</span><span class="p">)</span>
+    <span class="n">ax0</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">yticks</span><span class="p">)</span>
+    <span class="n">ax0</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Gene set augemntation&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mf">13.5</span><span class="p">)</span>
+    <span class="n">ax0</span><span class="o">.</span><span class="n">legend</span><span class="p">((</span><span class="n">bar_gain</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">bar_loss</span><span class="p">[</span><span class="mi">0</span><span class="p">]),(</span><span class="s1">&#39;Gain&#39;</span><span class="p">,</span><span class="s1">&#39;Loss&#39;</span><span class="p">),</span><span class="n">ncol</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;center left&#39;</span><span class="p">,</span> <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span><span class="n">frameon</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">setp</span><span class="p">(</span><span class="n">ax0</span><span class="o">.</span><span class="n">get_xticklabels</span><span class="p">(),</span> <span class="n">visible</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">fig</span></div>
+
+
+
     
 
 <span class="k">def</span> <span class="nf">vcorrcoef</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">y</span><span class="p">):</span>
@@ -253,14 +456,40 @@
         <span class="k">return</span> <span class="n">Ilabel</span>
         
 
-<span class="k">def</span> <span class="nf">preTrain</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">terms</span><span class="p">,</span> <span class="n">pi00</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="s1">&#39;gauss&#39;</span><span class="p">,</span> <span class="n">nFix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">initType</span><span class="o">=</span><span class="s1">&#39;pcaRand&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="preTrain"><a class="viewcode-back" href="../../index.html#fscLVM.preTrain">[docs]</a><span class="k">def</span> <span class="nf">preTrain</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">terms</span><span class="p">,</span> <span class="n">P_I</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="s1">&#39;gauss&#39;</span><span class="p">,</span> <span class="n">nFix</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Pre-train the f-scLVM factor analysis model.</span>
+
+<span class="sd">    Helper function to pre-train the f-scLVM factor analysis model to achieve </span>
+<span class="sd">    faster convergence and obtain an initial update order. Called by `initFA`.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        Y          (array_like): Matrix of normalised count values of `N` cells </span>
+<span class="sd">                                 and `G` variable genes in log-space.</span>
+<span class="sd">                                 Dimension (:math:`N\\times G`).</span>
+<span class="sd">        terms     (vector_like): Names of `K` annotated gene sets. Dimension</span>
+<span class="sd">                                 (:math:`K\\times 0`).</span>
+<span class="sd">        P_I        (array_like): Matrix specifying the likelihood of </span>
+<span class="sd">                                 whether a gene is annotated to a specific factor.</span>
+<span class="sd">                                 Dimension (:math:`G\\times K`).</span>
+<span class="sd">        noise              (str): Specifies the observation noise model. Should be either `&#39;gauss&#39;`,`&#39;hurdle&#39;` or `&#39;poisson&#39;`.</span>
+<span class="sd">                                 Defaults to `gauss`.             </span>
+<span class="sd">        nFix               (int): Number of terms which should be fixed and updated first. Defaults to `None`, </span>
+<span class="sd">                                  resulting in the number of unannotated factors being updated first.                                                            </span>
+<span class="sd">                               </span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A vector containing the initial update order of the terms</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
 
     <span class="c1">#import fscLVM.core as fscLVM</span>
+
+
     <span class="n">init_params</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">init_params</span><span class="p">[</span><span class="s1">&#39;noise&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">noise</span>
     <span class="n">init_params</span><span class="p">[</span><span class="s1">&#39;iLatent&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">terms</span><span class="o">==</span><span class="s1">&#39;hidden&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>    
 
-    <span class="n">pi</span> <span class="o">=</span> <span class="n">pi00</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">pi</span> <span class="o">=</span> <span class="n">P_I</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="n">K</span> <span class="o">=</span> <span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 
     <span class="c1">#data for sparseFA instance    </span>
@@ -268,7 +497,7 @@
     <span class="n">pi</span><span class="p">[</span><span class="n">pi</span><span class="o">&lt;.</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span><span class="mi">1</span><span class="n">e</span><span class="o">-</span><span class="mi">100</span>
     
 
-    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">fscLVM</span><span class="o">.</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
+    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
     <span class="n">sigmaOff</span> <span class="o">=</span> <span class="mi">1</span><span class="n">E</span><span class="o">-</span><span class="mi">3</span>
     <span class="n">sparsity</span> <span class="o">=</span> <span class="s1">&#39;VB&#39;</span>
 
@@ -278,7 +507,7 @@
     <span class="c1">#initType = &#39;pcaRand&#39;</span>
     <span class="n">terms0</span><span class="o">=</span><span class="n">terms</span>
     <span class="n">pi0</span><span class="o">=</span><span class="n">pi</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-    <span class="n">FA0</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">K</span><span class="p">,</span><span class="n">sigmaOff</span><span class="o">=</span><span class="n">sigmaOff</span><span class="p">,</span><span class="n">sigmaOn</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="mf">1.0</span><span class="p">,</span><span class="n">sparsity</span><span class="o">=</span><span class="n">sparsity</span><span class="p">,</span><span class="n">nIterations</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">permutation_move</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">priors</span><span class="o">=</span><span class="n">priors</span><span class="p">,</span><span class="n">initType</span><span class="o">=</span><span class="n">initType</span><span class="p">)</span>
+    <span class="n">FA0</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">K</span><span class="p">,</span><span class="n">sigmaOff</span><span class="o">=</span><span class="n">sigmaOff</span><span class="p">,</span><span class="n">sigmaOn</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="mf">1.0</span><span class="p">,</span><span class="n">sparsity</span><span class="o">=</span><span class="n">sparsity</span><span class="p">,</span><span class="n">nIterations</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">permutation_move</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">priors</span><span class="o">=</span><span class="n">priors</span><span class="p">,</span><span class="n">initType</span><span class="o">=</span><span class="s1">&#39;pcaRand&#39;</span><span class="p">)</span>
     <span class="n">FA0</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="o">**</span><span class="n">init</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">nFix</span><span class="o">==</span><span class="kc">None</span><span class="p">:</span>
         <span class="n">nFix</span> <span class="o">=</span> <span class="n">FA0</span><span class="o">.</span><span class="n">nKnown</span><span class="o">+</span><span class="n">FA0</span><span class="o">.</span><span class="n">nLatent</span>
@@ -290,7 +519,7 @@
 
 
 <span class="c1">#Sort by correlation to PC1    </span>
-    <span class="n">MPC</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">vcorrcoef</span><span class="p">(</span><span class="n">FA0</span><span class="o">.</span><span class="n">initS</span><span class="p">[:,</span><span class="n">SP</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">FA0</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">Ilabel</span><span class="p">)]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="n">X</span><span class="o">.</span><span class="n">T</span><span class="p">))[</span><span class="n">nFix</span><span class="p">:]</span>
+    <span class="n">MPC</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">vcorrcoef</span><span class="p">(</span><span class="n">FA0</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">E1</span><span class="p">[:,</span><span class="n">SP</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">FA0</span><span class="o">.</span><span class="n">W</span><span class="o">.</span><span class="n">Ilabel</span><span class="p">)]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="n">X</span><span class="o">.</span><span class="n">T</span><span class="p">))[</span><span class="n">nFix</span><span class="p">:]</span>
     <span class="n">Ipi</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="o">-</span><span class="n">MPC</span><span class="o">.</span><span class="n">ravel</span><span class="p">())</span>
     <span class="n">IpiRev</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">MPC</span><span class="o">.</span><span class="n">ravel</span><span class="p">())</span>
 
@@ -304,8 +533,8 @@
 <span class="c1">#Run model for 50 iterations         </span>
     <span class="n">pi</span> <span class="o">=</span> <span class="n">pi0</span><span class="p">[:,</span><span class="n">mRange</span><span class="p">]</span>
     <span class="n">terms</span> <span class="o">=</span> <span class="n">terms0</span><span class="p">[</span><span class="n">mRange</span><span class="p">]</span>     
-    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">fscLVM</span><span class="o">.</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
-    <span class="n">FA</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">K</span><span class="p">,</span><span class="n">sigmaOff</span><span class="o">=</span><span class="n">sigmaOff</span><span class="p">,</span><span class="n">sigmaOn</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="mf">1.0</span><span class="p">,</span><span class="n">sparsity</span><span class="o">=</span><span class="n">sparsity</span><span class="p">,</span><span class="n">nIterations</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">permutation_move</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">priors</span><span class="o">=</span><span class="n">priors</span><span class="p">,</span><span class="n">initType</span><span class="o">=</span><span class="n">initType</span><span class="p">)</span>
+    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
+    <span class="n">FA</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">K</span><span class="p">,</span><span class="n">sigmaOff</span><span class="o">=</span><span class="n">sigmaOff</span><span class="p">,</span><span class="n">sigmaOn</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="mf">1.0</span><span class="p">,</span><span class="n">sparsity</span><span class="o">=</span><span class="n">sparsity</span><span class="p">,</span><span class="n">nIterations</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">permutation_move</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">priors</span><span class="o">=</span><span class="n">priors</span><span class="p">,</span><span class="n">initType</span><span class="o">=</span><span class="s1">&#39;pcaRand&#39;</span><span class="p">)</span>
     <span class="n">FA</span><span class="o">.</span><span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span>
     <span class="n">FA</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="o">**</span><span class="n">init</span><span class="p">)</span> 
     <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">50</span><span class="p">):</span>
@@ -315,10 +544,11 @@
     <span class="c1">#Run reverse model for 50 iterations         </span>
     <span class="n">pi</span> <span class="o">=</span> <span class="n">pi0</span><span class="p">[:,</span><span class="n">mRangeRev</span><span class="p">]</span>
     <span class="n">terms</span> <span class="o">=</span> <span class="n">terms0</span><span class="p">[</span><span class="n">mRangeRev</span><span class="p">]</span>
-    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">fscLVM</span><span class="o">.</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
-    <span class="n">FArev</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">K</span><span class="p">,</span><span class="n">sigmaOff</span><span class="o">=</span><span class="n">sigmaOff</span><span class="p">,</span><span class="n">sigmaOn</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="mf">1.0</span><span class="p">,</span><span class="n">sparsity</span><span class="o">=</span><span class="n">sparsity</span><span class="p">,</span><span class="n">nIterations</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">permutation_move</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">priors</span><span class="o">=</span><span class="n">priors</span><span class="p">,</span><span class="n">initType</span><span class="o">=</span><span class="n">initType</span><span class="p">)</span>
+    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
+    <span class="n">FArev</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">K</span><span class="p">,</span><span class="n">sigmaOff</span><span class="o">=</span><span class="n">sigmaOff</span><span class="p">,</span><span class="n">sigmaOn</span><span class="o">=</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="mf">1.0</span><span class="p">,</span><span class="n">sparsity</span><span class="o">=</span><span class="n">sparsity</span><span class="p">,</span><span class="n">nIterations</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">permutation_move</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">priors</span><span class="o">=</span><span class="n">priors</span><span class="p">,</span><span class="n">initType</span><span class="o">=</span><span class="s1">&#39;pcaRand&#39;</span><span class="p">)</span>
     <span class="n">FArev</span><span class="o">.</span><span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span>
     <span class="n">FArev</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="o">**</span><span class="n">init</span><span class="p">)</span> 
+
     <span class="c1">#FArev.iterate(forceIterations=True, nIterations=nIterations)</span>
     <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">50</span><span class="p">):</span>
         <span class="n">FArev</span><span class="o">.</span><span class="n">update</span><span class="p">()</span> 
@@ -330,63 +560,74 @@
 <span class="c1">#    IpiM = (-(0.5*(1./FArev.Alpha.E1[SP.argsort(mRangeRev)][nFix:]*FArev.S.E1[:,SP.argsort(mRangeRev)][:,nFix:].std(0))+.5*(1./FA.Alpha.E1[SP.argsort(mRange)][nFix:]*FA.S.E1[:,SP.argsort(mRange)][:,nFix:].std(0)))).argsort()    </span>
     <span class="n">Ilabel</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nFix</span><span class="p">),</span><span class="n">IpiM</span><span class="o">+</span><span class="n">nFix</span><span class="p">])</span>
 
-    <span class="k">return</span> <span class="n">Ilabel</span>
+    <span class="k">return</span> <span class="n">Ilabel</span></div>
 
 
-<span class="k">def</span> <span class="nf">load_hdf5</span><span class="p">(</span><span class="n">dFile</span><span class="p">,</span> <span class="n">data_dir</span><span class="o">=</span><span class="s1">&#39;../../../data/&#39;</span><span class="p">):</span>  
+<div class="viewcode-block" id="load_hdf5"><a class="viewcode-back" href="../../index.html#fscLVM.load_hdf5">[docs]</a><span class="k">def</span> <span class="nf">load_hdf5</span><span class="p">(</span><span class="n">dFile</span><span class="p">,</span> <span class="n">data_dir</span><span class="o">=</span><span class="s1">&#39;../../../data/&#39;</span><span class="p">):</span>  
+    <span class="sd">&quot;&quot;&quot;Load input file for f-scLVM</span>
+
+<span class="sd">    Loads an hdf file and extracts all the inputs required by f-scLVM </span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        dFile (str): String contaning the file name of the hdf file with the input data.</span>
+<span class="sd">        data_dir    (str): Name of the directory containing the input hdf5 file.</span>
+
+
+<span class="sd">    Returns:</span>
+<span class="sd">        An dictionary containing all the inputs required by f-scLVM.</span>
+<span class="sd">    &quot;&quot;&quot;</span>    
+
     <span class="n">dataFile</span> <span class="o">=</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_dir</span><span class="p">,</span> <span class="n">dFile</span><span class="p">),</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
     <span class="n">data</span> <span class="o">=</span> <span class="n">smartGetDictHdf5</span><span class="p">(</span><span class="n">dataFile</span><span class="p">)</span>
     <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Y&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;Yhet&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
-    <span class="k">return</span> <span class="n">data</span>
+    <span class="k">return</span> <span class="n">data</span></div>
 
 
-<div class="viewcode-block" id="initFA"><a class="viewcode-back" href="../../index.html#fscLVM.initFA">[docs]</a><span class="k">def</span> <span class="nf">initFA</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">terms</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">annotation</span><span class="o">=</span><span class="s1">&#39;MSigDB&#39;</span><span class="p">,</span> <span class="n">nHidden</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">nHiddenSparse</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span><span class="n">pruneGenes</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">FPR</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span> <span class="n">FNR</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> \
-            <span class="n">noise</span><span class="o">=</span><span class="s1">&#39;gauss&#39;</span><span class="p">,</span> <span class="n">minGenes</span><span class="o">=</span><span class="mi">20</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Association between genetic markers and phenotype for continuous traits.</span>
 
-<span class="sd">    Matrix `X` shall contain the genetic markers (e.g., number of minor</span>
-<span class="sd">    alleles) with rows and columns representing samples and genetic markers,</span>
-<span class="sd">    respectively.</span>
-<span class="sd">    The user must specify only one of the parameters `G` and `K` for defining</span>
-<span class="sd">    the genetic background.</span>
-<span class="sd">    Let :math:`N` be the sample size, :math:`S` the number of covariates,</span>
-<span class="sd">    :math:`P_c` the number of genetic markers to be tested, and :math:`P_b`</span>
-<span class="sd">    the number of genetic markers used for Kinship estimation.</span>
+
+
+
+<div class="viewcode-block" id="initFA"><a class="viewcode-back" href="../../index.html#fscLVM.initFA">[docs]</a><span class="k">def</span> <span class="nf">initFA</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">terms</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">nHidden</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">nHiddenSparse</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span><span class="n">pruneGenes</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">FPR</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span> <span class="n">FNR</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> \
+            <span class="n">noise</span><span class="o">=</span><span class="s1">&#39;gauss&#39;</span><span class="p">,</span> <span class="n">minGenes</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">do_preTrain</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initialise the f-scLVM factor analysis model.</span>
+
+<span class="sd">    Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` </span>
+<span class="sd">    variable genes in log-space, second a vector `terms` contaning the names of all annotated gene set (correspondig to annotated factors) </span>
+<span class="sd">    and third, a binary inidcator matrix `I` linking `G` genes to `K` terms by indicating which genes are annotated to each factor. </span>
+<span class="sd">    A variety of options can be specified as described below. </span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        Y (array_like): Phenotype described by the number of</span>
-<span class="sd">                                 successes, as non-negative integers.</span>
-<span class="sd">                                 Dimension (:math:`N\\times 0`).</span>
-<span class="sd">        ntrials    (array_like): Phenotype described by the number of</span>
-<span class="sd">                                 trials, as positive integers. Dimension</span>
-<span class="sd">                                 (:math:`N\\times 0`).</span>
-<span class="sd">        X          (array_like): Candidate genetic markers (or any other</span>
-<span class="sd">                                 type of explanatory variable) whose</span>
-<span class="sd">                                 association with the phenotype will be</span>
-<span class="sd">                                 tested. Dimension (:math:`N\\times P_c`).</span>
-<span class="sd">        G          (array_like): Genetic markers matrix used internally for</span>
-<span class="sd">                                 kinship estimation. Dimension</span>
-<span class="sd">                                 (:math:`N\\times P_b`).</span>
-<span class="sd">        K          (array_like): Kinship matrix. Dimension</span>
-<span class="sd">                                 (:math:`N\\times N`).</span>
-<span class="sd">        covariates (array_like): Covariates. Default is an offset.</span>
-<span class="sd">                                 Dimension (:math:`N\\times S`).</span>
-<span class="sd">        progress         (bool): Shows progress. Defaults to `True`.</span>
+<span class="sd">        Y (array_like): Matrix of normalised count values of `N` cells </span>
+<span class="sd">                                 and `G` variable genes in log-space.</span>
+<span class="sd">                                 Dimension (:math:`N\\times G`).</span>
+<span class="sd">        terms    (vector_like): Names of `K` annotated gene sets. Dimension</span>
+<span class="sd">                                 (:math:`K\\times 0`).</span>
+<span class="sd">        P_I          (array_like): Inidicator matirx specifying</span>
+<span class="sd">                                 whether a gene is annotated to a specific factor.</span>
+<span class="sd">                                 Dimension (:math:`G\\times K`).</span>
+<span class="sd">        FNR             (float): False negative rate of annotations.</span>
+<span class="sd">                                 Defaults to 0.001</span>
+<span class="sd">        FPR             (float): False positive rate of annotations.</span>
+<span class="sd">                                 Defaults to 0.99                                 </span>
+<span class="sd">        nHidden           (int): Number of unannotated dense factors. Defaults to 3.</span>
+<span class="sd">        nHiddenSparse       (int): Number of unannotated sparse factors. Defaults to 0. </span>
+<span class="sd">                                 This value should be changed to e.g. 5 if the diagnositcs fail. </span>
+<span class="sd">        pruneGenes         (bool): prune genes that are not annotated to a least one factor. This option allows fast inference and </span>
+<span class="sd">                                   should be set to `True` either if the </span>
+<span class="sd">                                   key objective is to rank factors or if the annotations cover all genes of interest.  </span>
+<span class="sd">                                   Defaults to `False`.</span>
+<span class="sd">        noise              (str): Specifies the observation noise model. Should be either `&#39;gauss&#39;`,`&#39;hurdle&#39;` or `&#39;poisson&#39;`.</span>
+<span class="sd">                                 Defaults to `gauss`.                                      </span>
+<span class="sd">        minGenes          (int): minimum number of genes required per term to retain it  </span>
+<span class="sd">                                 Defaults to `20`.  </span>
+<span class="sd">        do_preTrain      (bool): Boolean switch indicating whether pre-training should be used to establish the initial </span>
+<span class="sd">                                update order. Can be set to `False` for very large datasets.</span>
+<span class="sd">                                Defaults to `True`                                                                 </span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        A :class:`lim.genetics.qtl.LikelihoodRatioTest` instance.</span>
+<span class="sd">        A :class:`fscLVM.CSparseFA` instance.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="c1"># Initialize the sparse factor analysis models</span>
-    <span class="c1"># Y: expression matrix, cells x genes</span>
-    <span class="c1"># I: indicator  matrix for annotations:  [terms x genes]</span>
-    <span class="c1"># FNR/FPR: false positive and false negative rate of annotations</span>
-    <span class="c1"># nHidden:  number of dense unannotated factors fit</span>
-    <span class="c1"># nHiddenSparse:  number of sparse unannotated factors</span>
-    <span class="c1"># minGenes: minimum number of genes required per term to retain it</span>
-    <span class="c1"># pruneGenes: prune genes that are not annotated to a least one factor. This option makes sense if the </span>
-    <span class="c1"># key objective is to rank factors rather than the discovery of additional marker genes</span>
-    <span class="c1"># noise: noise model. gauss (default), poisson, drop (Hurdle noise model)</span>
     
     <span class="c1">#check for consistency of input parameters</span>
     <span class="p">[</span><span class="n">num_cells</span><span class="p">,</span><span class="n">num_genes</span><span class="p">]</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">shape</span>
@@ -419,6 +660,9 @@
         <span class="n">idx_genes</span>  <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">I</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span>
         <span class="n">Y</span> <span class="o">=</span> <span class="n">Y</span><span class="p">[:,</span><span class="n">idx_genes</span><span class="p">]</span>
         <span class="n">pi</span> <span class="o">=</span> <span class="n">pi</span><span class="p">[</span><span class="n">idx_genes</span><span class="p">,:]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">idx_genes</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>        
+
 
     <span class="c1">#center data for Gaussian observation noise</span>
     <span class="k">if</span> <span class="n">noise</span><span class="o">==</span><span class="s1">&#39;gauss&#39;</span><span class="p">:</span>
@@ -444,12 +688,13 @@
         <span class="n">pi</span> <span class="o">=</span> <span class="n">SP</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">SP</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">Y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span><span class="o">*</span><span class="p">(</span><span class="mf">1.</span><span class="o">-</span><span class="mi">1</span><span class="n">e</span><span class="o">-</span><span class="mi">10</span><span class="p">),</span><span class="n">pi</span><span class="p">])</span>        
         <span class="n">num_terms</span> <span class="o">+=</span> <span class="n">nHidden</span>
 
-   
-    <span class="n">Ilabel</span> <span class="o">=</span> <span class="n">preTrain</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">terms</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="n">noise</span><span class="p">,</span> <span class="n">nFix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">initType</span><span class="o">=</span><span class="s1">&#39;pcaRand&#39;</span><span class="p">)</span>
-    <span class="n">pi</span> <span class="o">=</span> <span class="n">pi</span><span class="p">[:,</span><span class="n">Ilabel</span><span class="p">]</span>
-    <span class="n">terms</span> <span class="o">=</span> <span class="n">terms</span><span class="p">[</span><span class="n">Ilabel</span><span class="p">]</span>    
-    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">fscLVM</span><span class="o">.</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
-    <span class="n">FA</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">num_terms</span><span class="p">)</span>   
+    <span class="k">if</span> <span class="n">do_preTrain</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span>   
+        <span class="n">Ilabel</span> <span class="o">=</span> <span class="n">preTrain</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">terms</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="n">noise</span><span class="p">,</span> <span class="n">nFix</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">pi</span> <span class="o">=</span> <span class="n">pi</span><span class="p">[:,</span><span class="n">Ilabel</span><span class="p">]</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="n">terms</span><span class="p">[</span><span class="n">Ilabel</span><span class="p">]</span>    
+
+    <span class="n">init</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;init_data&#39;</span><span class="p">:</span><span class="n">CGauss</span><span class="p">(</span><span class="n">Y</span><span class="p">),</span><span class="s1">&#39;Pi&#39;</span><span class="p">:</span><span class="n">pi</span><span class="p">,</span><span class="s1">&#39;terms&#39;</span><span class="p">:</span><span class="n">terms</span><span class="p">,</span> <span class="s1">&#39;noise&#39;</span><span class="p">:</span><span class="n">noise</span><span class="p">}</span>
+    <span class="n">FA</span> <span class="o">=</span> <span class="n">fscLVM</span><span class="o">.</span><span class="n">CSparseFA</span><span class="p">(</span><span class="n">components</span><span class="o">=</span><span class="n">num_terms</span><span class="p">,</span> <span class="n">idx_genes</span> <span class="o">=</span> <span class="n">idx_genes</span><span class="p">)</span>   
     <span class="n">FA</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="o">**</span><span class="n">init</span><span class="p">)</span>  
     <span class="k">return</span> <span class="n">FA</span>   </div>
 
@@ -546,7 +791,7 @@
       </ul>
     </div>
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2016, Florian Buettner.
+        &#169; Copyright 2016, Florian Buettner and Oliver Stegle.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.4.8.
     </div>
   </body>

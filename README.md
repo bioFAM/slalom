@@ -15,7 +15,7 @@ Observed heterogeneity in single-cell profiling data is multi-factorial. f-scLVM
 ##Installation requirements:
 
 f-scLVM requires Python 2.7 with
-  - scipy, h5py, numpy, pylab, matplotlib, scikit-learn, re
+  - scipy, h5py, numpy, matplotlib, scikit-learn, re
   
 f-scLVM can be installed via pip with `pip install fscLVM`.
 

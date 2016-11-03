@@ -16,11 +16,11 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-from fscLVM import __version__
+#from fscLVM import __version__
 
-import os
-import sys
-sys.path.insert(0, os.path.abspath('py/'))
+# import os
+# import sys
+# sys.path.insert(0, os.path.abspath('py/'))
 
 # -- General configuration ------------------------------------------------
 
@@ -69,6 +69,7 @@ author = u'Florian Buettner'
 # built documents.
 #
 # The short X.Y version.
+__version__ = '1.0.0.dev2'
 version = __version__
 # The full version, including alpha/beta/rc tags.
 release = __version__

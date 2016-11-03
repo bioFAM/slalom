@@ -22,7 +22,7 @@ f-scLVM can be installed via pip with `pip install fscLVM`.
 ##How to use f-scLVM?
 The current software version should be considered as beta. More extensive documentation, tutorials and examples will be available soon. 
 
-For an illustration of how f-scLVM can be applied to mESC data considered in Buettner et al. [1], we have prepared a notebook that can be viewed [interactively](http://nbviewer.ipython.org/github/pmbio/f-scLVM/blob/master/py/demo/ipynb/f-scLVM.ipynb).
+For an illustration of how f-scLVM can be applied to mESC data considered in Buettner et al. [1], we have prepared a notebook that can be viewed [interactively](http://nbviewer.ipython.org/github/pmbio/f-scLVM/blob/master/ipynb/f-scLVM.ipynb).
 
 Documentation of the code can be found [here](http://f-sclvm.readthedocs.io).
 ##References:

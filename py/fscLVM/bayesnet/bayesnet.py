@@ -317,12 +317,12 @@ class ABayesNet(ANode):
         #update with specified parameters
         dp.update(parameters)
         #set all parameters as member variables
-        for param in dp.keys():
+        for param in list(dp.keys()):
             self.__setattr__(param,dp[param])
         
         #set a default tollerance for convergence
         if len(self.schedule)==0:
-            self.schedule = nodes.keys()
+            self.schedule = list(nodes.keys())
         self.nodes = nodes
         self.iterationCount = 0
         self._bound = 0
@@ -338,7 +338,7 @@ class ABayesNet(ANode):
     def updateNode(self,node):
         """update node (node)
         - this is mainly to allow flexibility by overriding this method"""
-        if node in self.nodes.keys():
+        if node in list(self.nodes.keys()):
             #the update has the net as an argument (self!)
             self.nodes[node].update(self)
         else:

@@ -26,7 +26,7 @@ import sys
 #from fscLVM.utils import *
 import fscLVM
 import pandas as pd
-from bayesnet.vbfa import *
+from .bayesnet.vbfa import *
 
 data_dir = '../../../data/'
 out_base = './../results/'
@@ -103,7 +103,7 @@ def dumpFA(FA):
 def loadFA(out_name):
     out_file = h5py.File(out_name,'r')    
     res = {}   
-    for key in out_file.keys():    
+    for key in list(out_file.keys()):    
         res[key] = out_file[key]    
     return res
     
@@ -127,7 +127,7 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=No
         raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
 
     if FA!=None:
-        print FA
+        print(FA)
         S = FA.getFactors()
         alpha = FA.getRelevance()
         terms = FA.getTerms()
@@ -148,7 +148,7 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=No
             try:
                 import brewer2mpl
             except ImportError:
-                print 'Specify colors using the cols argument or install the brewer2mpl module'
+                print('Specify colors using the cols argument or install the brewer2mpl module')
             bmap=brewer2mpl.get_map('Paired', 'Qualitative', len(uLab))
             cols = bmap.hex_colors         
         pList=list()
@@ -288,7 +288,7 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     n_gain = []
     n_loss = []
     n_prior = []
-    for i in xrange(Nactive):
+    for i in range(Nactive):
         n_gain += [Ngain[Iactive[i]]]
         n_loss += [-1.0*Nloss[Iactive[i]]]
         n_prior += [Nprior[Iactive[i]]]
@@ -407,7 +407,7 @@ def getIlabel(order, Y, terms, pi,init_factors=None):
         nFix = (SP.where(terms=='hidden')[0]).min()+len(SP.where(terms=='hidden')[0])
         MPC = abs(vcorrcoef(PCs.T,X.T))[nFix:]
         IpiRev = SP.argsort(MPC.ravel())      
-        Ilabel = range(len(terms))
+        Ilabel = list(range(len(terms)))
         Ilabel[nFix:] = IpiRev+nFix
         return Ilabel
         
@@ -480,10 +480,10 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     IpiRev = SP.argsort(MPC.ravel())
 
 
-    mRange = range(FA0.components)
+    mRange = list(range(FA0.components))
     mRange[nFix:] = Ipi+nFix
     
-    mRangeRev = range(FA0.components)
+    mRangeRev = list(range(FA0.components))
     mRangeRev[nFix:] = IpiRev+nFix
 
 #Run model for 50 iterations         
@@ -749,19 +749,19 @@ def smartAppend(table,name,value):
     """
     helper function for apppending in a dictionary  
     """ 
-    if name not in table.keys():
+    if name not in list(table.keys()):
         table[name] = []
     table[name].append(value)
 
 
 def dumpDictHdf5(RV,o):
     """ Dump a dictionary where each page is a list or an array """
-    for key in RV.keys():
+    for key in list(RV.keys()):
         o.create_dataset(name=key,data=SP.array(RV[key]),chunks=True,compression='gzip')
 
 def smartDumpDictHdf5(RV,o, chunks=True, close_file=True):
     """ Dump a dictionary where each page is a list or an array or still a dictionary (in this case, it iterates)"""
-    for key in RV.keys():
+    for key in list(RV.keys()):
         if type(RV[key])==dict:
             g = o.create_group(key)
             smartDumpDictHdf5(RV[key],g)
@@ -775,7 +775,7 @@ def smartDumpDictHdf5(RV,o, chunks=True, close_file=True):
      
 def smartGetDictHdf5(o):
     RV={}    
-    for key in o.keys():
+    for key in list(o.keys()):
         if type(o[key])==dict:
             smartGetDictHdf5(RV[key],o[key])
         else:

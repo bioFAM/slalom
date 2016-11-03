@@ -20,13 +20,13 @@ import numpy.random as random
 import numpy.linalg as linalg
 import scipy.special as special
 import sys
-import cPickle
+import pickle
 import logging as L
 import scipy as S
 import pdb
 #use everything from BayesNet
-from bayesnet import *
-from expressionnet import AExpressionModule
+from .bayesnet import *
+from .expressionnet import AExpressionModule
 
 
 #node which captures the data which might have a 1./2. moment as well:
@@ -180,8 +180,8 @@ class CVBFA(AExpressionModule):
         #handle setting of parameters via Bayesnet constructor
         ABayesNet.__init__(self,parameters=parameters)
         #priors for the various components:
-        if(not self.priors.has_key('Alpha')): self.priors['Alpha']={'priors': [1E-3,1E-3]}
-        if(not self.priors.has_key('Eps')):   self.priors['Eps']={'priors': [1,100]}
+        if('Alpha' not in self.priors): self.priors['Alpha']={'priors': [1E-3,1E-3]}
+        if('Eps' not in self.priors):   self.priors['Eps']={'priors': [1,100]}
         self.dataNode=None
         if init_data is None and E1 is not None:
             init_data = CGauss(E1=E1,E2=E2)
@@ -201,7 +201,7 @@ class CVBFA(AExpressionModule):
 
         #add the new nodes - to be replaced by XML init:
         self.nodes = {'S':CNodeS(self),'W':CNodeW(self),'Eps':CNodeEps(self,self.priors['Eps']['priors']),'Alpha':CNodeAlpha(self,self.priors['Alpha']['priors'])}
-        for n in self.nodes.keys(): setattr(self,n,self.nodes[n])
+        for n in list(self.nodes.keys()): setattr(self,n,self.nodes[n])
 
         #pca initialisation
         if self.initType == 'pca':
@@ -215,7 +215,7 @@ class CVBFA(AExpressionModule):
             self.W.update()
             self.S.update()
         else:
-            print "random init"
+            print("random init")
             self.S.E1 = random.randn(self._N,self.components)
             self.W.E1 = random.randn(self._D,self.components)
             self.S.update()
@@ -250,7 +250,7 @@ class CVBFA(AExpressionModule):
             Zr = S.dot(self.S.E1,self.W.E1.T)
             Zd = self.Z.E1-Zr
             error = ((Zd)**2).mean()
-            print "reconstruction error: %f" % (error)
+            print("reconstruction error: %f" % (error))
             
 
             if (abs(LB - self._bound) < self.tolerance) and not forceIterations:

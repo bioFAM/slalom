@@ -22,11 +22,11 @@ CSumExpressionNet(AExpressionModule)
 - Implementation of ExpressionModule which models gene expression data by a sum of influences
 """
 
-from bayesnet import *
+from .bayesnet import *
 import pdb
 import logging as L
 import time
-import mxml
+from . import mxml
 
 
 class AExpressionModule(ABayesNet):
@@ -160,7 +160,7 @@ class CSumExpressionNet(AExpressionModule):
             self.expressionModules[name] = class_instance
         #initialize modules in the order specfied in schedule
         for node in self.schedule:
-            if node not in self.expressionModules.keys():
+            if node not in list(self.expressionModules.keys()):
                 continue
             module = self.expressionModules[node]
             init_data      = self.messageModule(node)
@@ -218,7 +218,7 @@ class CSumExpressionNet(AExpressionModule):
             self.expressionModules[node].update(**kwargs)
             #always update sumNode as it is a helper only
             self.sumDataNode.update(self)
-        elif node in self.nodes.keys():
+        elif node in list(self.nodes.keys()):
             #if "normal node (Eps)"
             self.nodes[node].update(self)
         if calc_bound:

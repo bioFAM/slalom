@@ -17,7 +17,7 @@ from xml.dom import minidom
 import logging as L
 import os.path
 import string
-import cPickle
+import pickle
 import scipy as S
 #models which need to be made public to the xml parsing function as we create classes in here
 
@@ -75,7 +75,7 @@ class CXml(object):
 
         elements = self.xml.getElementsByTagName(tagName)
         if level is not None:
-            elements = filter(lambda x: parentNode(x,level)==self.xml, elements)
+            elements = [x for x in elements if parentNode(x,level)==self.xml]
         return elements
 
     def getModels(self):
@@ -111,7 +111,7 @@ class CXml(object):
         if os.path.exists(value):
             if (string.lower(os.path.splitext(value)[1])=='.pickle'):
                 #load file and return the value
-                return cPickle.load(open(value,'rb'))
+                return pickle.load(open(value,'rb'))
             else:
                 L.error('gut a file with unsupported extension')
         else:
@@ -145,7 +145,7 @@ class CXml(object):
             ID = param.getAttribute('id')
             if ID=='':
                 continue
-            elif ID  in parameters.keys():
+            elif ID  in list(parameters.keys()):
                 value = parameters[ID]
                 param.setAttribute('value',value)
             pass

@@ -15,12 +15,12 @@
 # fscLVM
 # factorial single cell latent variable model
 # this class implements  a  variational inference procedure for a sparse model with different observation noise models.
-from __future__ import division
+
 #import matplotlib as mpl
 #import matplotlib.lines as mlines
 #mpl.use('Agg')
 #import pylab as plt
-from bayesnet.vbfa import *
+from .bayesnet.vbfa import *
 import scipy as SP
 from sklearn import metrics
 import re
@@ -296,10 +296,10 @@ class CSparseFA(AExpressionModule):
                 Zd = self.Z.E1-Zr
                 error = (abs(Zd)).mean()
 
-                print "iteration %i" % iter
+                print("iteration %i" % iter)
 
             if (abs(error_old - error) < tolerance) and not forceIterations and iter>minIterations:
-                print 'Converged after %i iterations' % (iter)
+                print('Converged after %i iterations' % (iter))
                 break
 
         pass
@@ -313,12 +313,12 @@ class CSparseFA(AExpressionModule):
             elif self.noise=='hurdle' or self.noise=='poisson':
                 YmeanX = self.meanX
 
-            setMinus = SP.int_(SP.hstack([range(M)[0:m],range(M)[m+1::]]))
+            setMinus = SP.int_(SP.hstack([list(range(M))[0:m],list(range(M))[m+1::]]))
 
             #update S
             SW_sigma = (self.W.C[:, m,0]*self.W.E1[:, m])*self.Eps.E1
             SW2_sigma = (self.W.C[:, m,0]*(self.W.E2diag[:, m]))*self.Eps.E1              
-            setMinus = SP.int_(SP.hstack([range(M)[0:m],range(M)[m+1::]]))
+            setMinus = SP.int_(SP.hstack([list(range(M))[0:m],list(range(M))[m+1::]]))
              
             b0 = SP.dot(self.S.E1[:,setMinus],(self.W.C[:, setMinus,0]*self.W.E1[:, setMinus]).transpose())
             b=SP.dot(b0,SW_sigma)
@@ -365,7 +365,7 @@ class CSparseFA(AExpressionModule):
         sigma2Sigmaw = (1.0/self.Eps.E1)*self.Alpha.E1[m]
 
                    
-        setMinus = SP.int_(SP.hstack([range(M)[0:m],range(M)[m+1::]]))
+        setMinus = SP.int_(SP.hstack([list(range(M))[0:m],list(range(M))[m+1::]]))
         SmTSk = SP.sum( SP.tile(self.S.E1[:,m:m+1],(1, M-1))*self.S.E1[:,setMinus], 0)
         SmTSm = SP.dot(self.S.E1[:,m].transpose(),self.S.E1[:,m]) + self.S.diagSigmaS[:,m].sum()
 
@@ -417,7 +417,7 @@ class CSparseFA(AExpressionModule):
         t1 = SP.sum(SW_sigma*SP.dot(self.Z.E1.transpose(),self.S.E1), 1)
         t2 = SP.sum(SW2_sigma.transpose()* muSTmuS,0)
         t3 = SP.zeros((self._D,))
-        mRangeUse =  range(SW_sigma.shape[1])#SP.where(self.doUpdate>=0)[0]
+        mRangeUse =  list(range(SW_sigma.shape[1]))#SP.where(self.doUpdate>=0)[0]
         for m in range(len(mRangeUse)):
             for m1 in mRangeUse[m+1:]:
                 tt = ( (self.W.C[:, m1,0]*self.W.E1[:, m1])*SW_sigma[:, m])
@@ -436,7 +436,7 @@ class CSparseFA(AExpressionModule):
 
         M = self.components
         self.Eps.diagSigmaS = SP.zeros((M,))
-        mRange = range(M)
+        mRange = list(range(M))
         if self.shuffle==True and self.iterationCount>0:
             mRange[self.nKnown:] = SP.random.permutation(mRange[self.nKnown:])
             mRange[self.nKnown:] = SP.random.permutation(mRange[self.nKnown:])
@@ -483,9 +483,9 @@ class CSparseFA(AExpressionModule):
 
         (nChanged, nChangedRel) = self.getNchanged()
         if nChangedRel.max()<1:
-            print 'Maximally ', nChangedRel.max()*100.,'% Genes per factor changed.'
+            print('Maximally ', nChangedRel.max()*100.,'% Genes per factor changed.')
         else:
-            print 'Maximally ', nChangedRel.max()*100.,'% Genes per factor changed. Re-run with sparse annotated factors.'
+            print('Maximally ', nChangedRel.max()*100.,'% Genes per factor changed. Re-run with sparse annotated factors.')
 
 
 
@@ -497,8 +497,8 @@ class CSparseFA(AExpressionModule):
         #priors for the various components:
         if not hasattr(self, 'priors'):
             self.priors = {}
-        if(not self.priors.has_key('Alpha')): self.priors['Alpha']={'priors': [1E-3,1E-3]}
-        if(not self.priors.has_key('Eps')):   self.priors['Eps']={'priors': [1E-3,1E-3]}
+        if('Alpha' not in self.priors): self.priors['Alpha']={'priors': [1E-3,1E-3]}
+        if('Eps' not in self.priors):   self.priors['Eps']={'priors': [1E-3,1E-3]}
         
         self.dataNode=None
         if init_data is None and E1 is not None:
@@ -527,13 +527,13 @@ class CSparseFA(AExpressionModule):
         self.numExpressed = SP.sum(self.Z.E1>0,0)
         
         #known covariates
-        if init_factors!=None and init_factors.has_key('Known'):
+        if init_factors!=None and 'Known' in init_factors:
             self.nKnown = init_factors['Known'].shape[1]
             self.Known = init_factors['Known']
             assert self.Known.shape[0] == self.Z.E1.shape[0]
             self.nHidden = self.components-self.nKnown
             self.iHidden = SP.arange(self.nKnown,self.nHidden+self.nKnown)
-            if init_factors.has_key('Intr'):
+            if 'Intr' in init_factors:
                 self.nKnown = init_factors['Known'].shape[1]
                 self.Known = init_factors['Known']
                 assert self.Known.shape[0] == self._N
@@ -554,26 +554,26 @@ class CSparseFA(AExpressionModule):
 
 
         #OS: this part here looks confusing. I don't understand what the variables are. Some more clarity would be good            
-        if init_factors!=None and init_factors.has_key('iLatent'):
+        if init_factors!=None and 'iLatent' in init_factors:
             self.iLatent = init_factors['iLatent']
             self.nLatent = len(init_factors['iLatent'])
         else:
             self.iLatent = SP.where(self.terms=='hidden')[0]
             self.nLatent = len(self.iLatent)
 
-        if init_factors!=None and init_factors.has_key('iLatentSparse'):
+        if init_factors!=None and 'iLatentSparse' in init_factors:
             self.iLatentSparse = init_factors['iLatentSparse']
             self.nLatentSparse= len(init_factors['iLatentSparse'])
         else:
             self.iLatentSparse = SP.where(self.terms=='hiddenSparse')[0]      
             self.nLatentSparse = len(self.iLatentSparse)        
             
-        if init_factors!=None and init_factors.has_key('onF'):
+        if init_factors!=None and 'onF' in init_factors:
             self.onF = init_factors['onF']
         else:            
             self.onF = self.Z.E1.shape[0]/10000.#self.nScale
 
-        if init_factors!=None and init_factors.has_key('initZ'):
+        if init_factors!=None and 'initZ' in init_factors:
             self.initZ = init_factors['initZ']
         else:            
             self.initZ = Pi.copy()#self.nScale
@@ -594,7 +594,7 @@ class CSparseFA(AExpressionModule):
             
 
         self.nodes = {'S':CNodeSsparse(self),'W':CNodeWsparseVEM(self), 'Alpha':CNodeAlphasparse(self,self.priors['Alpha']['priors']),'Eps':CNodeEpsSparse(self,self.priors['Eps']['priors'])}
-        for n in self.nodes.keys(): setattr(self,n,self.nodes[n])
+        for n in list(self.nodes.keys()): setattr(self,n,self.nodes[n])
 
         #pca initialisation
         Ion = None
@@ -699,8 +699,8 @@ class CSparseFA(AExpressionModule):
                 self.initS = self.S.E1.copy()
 
         elif self.initType == 'data':
-            assert ('S' in init_factors.keys())
-            assert ('W' in init_factors.keys())
+            assert ('S' in list(init_factors.keys()))
+            assert ('W' in list(init_factors.keys()))
 #            Ion = init_factors['Ion']
             Sinit = init_factors['S']
             Winit = init_factors['W']
@@ -714,7 +714,7 @@ class CSparseFA(AExpressionModule):
 
     #calculate the variational bound:
     def calcBound(self):
-        print 'Currently not implemented '
+        print('Currently not implemented ')
 
 
 

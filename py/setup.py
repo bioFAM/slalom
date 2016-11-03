@@ -20,7 +20,7 @@ def setup_package():
 
    metadata = dict(
        name='fscLVM',
-       version='1.0.0.dev1',
+       version='1.0.0.dev2',
        maintainer="f-scLVM Developers",
        maintainer_email="fbuettner.phys@gmail.com",
        license="Apache 2.0",

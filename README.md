@@ -28,3 +28,7 @@ Documentation of the code can be found [here](http://f-sclvm.readthedocs.io).
 ##References:
 
 [1] Buettner, F.,Pratanwanich, N., Marioni, J., Stegle, O. Scalable latent-factor models applied to single-cell RNA-seq data separate biological drivers from confounding effects. Submitted 
+
+
+[![Build Status](https://travis-ci.org/PMBio/f-scLVM.svg?branch=master)](https://travis-ci.org/PMBio/f-scLVM)   [![Documentation Status](https://readthedocs.org/projects/f-sclvm/badge/?version=latest)](http://f-sclvm.readthedocs.io/en/latest/?badge=latest)
+

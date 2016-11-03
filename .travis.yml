@@ -30,7 +30,6 @@ before_script:
 script:
 - export PATH="$HOME/miniconda/bin:$PATH"
 - source activate travisci
-- cd py
 - python setup.py sdist
 - pip install dist/`ls dist | grep -i -E '\.(gz)$' | head -1`
 - pushd /

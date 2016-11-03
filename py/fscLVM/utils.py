@@ -108,7 +108,7 @@ def loadFA(out_name):
     return res
     
     
-def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=None, isCont=True,madFilter=0.4):
+def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None, isCont=True,madFilter=0.4):
     """Scatter plot of 2 factors
 
     Args:
@@ -127,7 +127,6 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=No
         raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
 
     if FA!=None:
-        print(FA)
         S = FA.getFactors()
         alpha = FA.getRelevance()
         terms = FA.getTerms()
@@ -136,6 +135,8 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=No
         idxF = SP.argsort(-alpha)    
         X1 = FA.S.E1[:,idxF[idx1]]
         X2 = FA.S.E1[:,idxF[idx2]]
+        xlab = terms[idxF[idx1]]
+        ylab = terms[idxF[idx2]]            
     else:
         X1 = X[:,0]
         X2 = X[:,1]
@@ -154,15 +155,15 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=No
         pList=list()
         for i in range(len(X1)):
             pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(lab[i]==uLab)[0]]))
-        plt.xlabel(terms[idxF[idx1]])
-        plt.ylabel(terms[idxF[idx2]])
+        plt.xlabel(xlab)
+        plt.ylabel(ylab)
         lList=list()
         for i in range(len(uLab)):
             lList.append( mlines.Line2D([], [], color=cols[i], marker='.',
                               markersize=7, label=uLab[i], linewidth=0))     
         plt.legend(handles=lList)
     else:
-        if lab!=None:
+        if len(lab)>0:
             plt.scatter(X1, X2, c=lab, s=20)
         else:
             plt.scatter(X1, X2, s=20)
@@ -581,7 +582,7 @@ def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):
     yname = os.path.join(data_dir,dataFile )
     df = pd.read_csv(yname, sep=';').T
     
-    I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=df.index, columns=terms)
+    I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=[ind.title() for ind in df.index], columns=terms)
 
     for i_anno in range(len(terms)):      
         anno_expressed = list()
@@ -603,7 +604,7 @@ def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):
 
     data_out = {}
     data_out['terms'] = SP.array(terms)
-    data_out['Y'] = df.values
+    data_out['Y'] = df.values.T
     data_out['I'] = I.values
     data_out['genes'] = df.index
     data_out['lab'] = df.columns
@@ -612,7 +613,7 @@ def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):
 
 
 
-def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=False, FPR=0.99, FNR=0.001, \
+def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
             noise='gauss', minGenes=20, do_preTrain=True):
     """Initialise the f-scLVM factor analysis model.
 

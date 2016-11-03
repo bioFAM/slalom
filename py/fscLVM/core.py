@@ -468,11 +468,10 @@ class CSparseFA(AExpressionModule):
         return (nChanged, nChangedRel)
 
 
-    def getChanged(self, theshold=0.5):
+    def getChanged(self, threshold=0.5):
         """ Return number of annotations changed by the model (sum of included and exluded genes )
         """
-
-        changed = ((self.Pi>threshold)!=(self.W.C[:,:,0]>threshold), 0)[(self.nLatent+self.nLatentSparse):]
+        changed = (self.Pi>threshold)!=(self.W.C[:,:,0]>threshold)[:,(self.nLatent+self.nLatentSparse):]
         
         return changed
 

@@ -15,7 +15,7 @@ def setup_package():
 
    setup_requires = ['']
    install_requires = ['scipy>=0.17', 'numpy>=1.10', 'h5py>=2.5',
-                       'matplotlib>=1.5', 'sklearn>=0.17.1']
+                       'matplotlib>=1.5', 'scikit-learn>=0.17.1']
    tests_require = install_requires
 
    metadata = dict(

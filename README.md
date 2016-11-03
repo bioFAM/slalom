@@ -24,7 +24,7 @@ The current software version should be considered as beta. More extensive docume
 
 For an illustration of how f-scLVM can be applied to mESC data considered in Buettner et al. [1], we have prepared a notebook that can be viewed [interactively](http://nbviewer.ipython.org/github/pmbio/f-scLVM/blob/master/py/demo/ipynb/f-scLVM.ipynb).
 
-Documentation of the code can be found [here](f-sclvm.rtfd.io).
+Documentation of the code can be found [here](http://f-sclvm.readthedocs.io).
 ##References:
 
 [1] Buettner, F.,Pratanwanich, N., Marioni, J., Stegle, O. Scalable latent-factor models applied to single-cell RNA-seq data separate biological drivers from confounding effects. Submitted 

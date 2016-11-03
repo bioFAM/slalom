@@ -595,9 +595,9 @@ def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):
         if annoFile=='h.all.v5.0.symbols.gmt.txt':
             substring='HALLMARK_'
         elif annoFile=='c2.cp.reactome.v4.0.symbols.gmt.txt':
-            substring=='REACTOME_'
+            substring='REACTOME_'
         else:
-            substring==' '        
+            substring=' '        
 
         terms = [term[term.find(substring)+len(substring):30] for term in terms]
         terms = [term.capitalize().replace('_',' ') for term in terms]

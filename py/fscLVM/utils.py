@@ -25,6 +25,7 @@ import brewer2mpl
 import sys
 #from fscLVM.utils import *
 import fscLVM
+import pandas as pd
 from bayesnet.vbfa import *
 
 data_dir = '../../../data/'
@@ -107,7 +108,7 @@ def loadFA(out_name):
     return res
     
     
-def plotFactors(FA,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=None, isCont=True,madFilter=0.4):
+def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=None, isCont=True,madFilter=0.4):
     """Scatter plot of 2 factors
 
     Args:
@@ -122,6 +123,9 @@ def plotFactors(FA,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=None, i
                                         For large datsets this can be set to 0.                                           
      """       
 
+    if FA==None and X==None:
+        raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
+
     if FA!=None:
         print FA
         S = FA.getFactors()
@@ -133,8 +137,10 @@ def plotFactors(FA,idx1=0, idx2=1, X = None,  lab=None, terms=None, cols=None, i
         X1 = FA.S.E1[:,idxF[idx1]]
         X2 = FA.S.E1[:,idxF[idx2]]
     else:
-        X1 = X[:,idx1]
-        X2 = X[:,idx2]        
+        X1 = X[:,0]
+        X2 = X[:,1]
+        xlab = terms[0]
+        ylab = terms[1]        
     
     if isCont==False:
         uLab = SP.unique(lab)  
@@ -174,7 +180,6 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
         madFilter          (float)           : Filter factors by this mean absolute deviation to exclude outliers. 
                                                 For large datsets this can be set to 0.
     """    
-
 
     if FA!=None:
         S = FA.getFactors()
@@ -234,7 +239,7 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     if db=='REACTOME':
         substring = 'REACTOME_'
     else:
-        substring=''
+        substring='HALLMARK_'
 
     terms = FA.getTerms()
     X = FA.getFactors()
@@ -276,8 +281,8 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     xticks_text  = list(terms[Iactive])
 
 
-    xticks_text = [terms[terms.find(substring)+len(substring):30] for terms in xticks_text]
-    xticks_text = [terms.capitalize().replace('_',' ') for terms in xticks_text]
+    #xticks_text = [terms[terms.find(substring)+len(substring):30] for terms in xticks_text]
+    #xticks_text = [terms.capitalize().replace('_',' ') for terms in xticks_text]
 
 
     n_gain = []
@@ -534,6 +539,75 @@ def load_hdf5(dFile, data_dir='../../../data/'):
     return data
 
 
+def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):  
+    """Load input file for f-scLVM from txt files.
+
+    Loads an txt files and extracts all the inputs required by f-scLVM 
+
+    Args:
+        dataFile (str): String contaning the file name of the csv file with the normalised gene expression data
+        annoFile (str):  String contaning the file name of the txt file containing the gene set annotations. Each line corresponds t 
+                        one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
+        data_dir    (str): Name of the directory containing the input hdf5 file.
+        niceTerms    (bool): Indicates whether to nice terms (omit pre-fix, capitalise, shorten). Defaults to true.
+
+
+    Returns:
+        An dictionary containing all the inputs required by f-scLVM.
+    """    
+
+    fname = os.path.join(data_dir, annoFile)
+    with open(fname) as f:
+        content = [x.strip('\n') for x in f.readlines()]
+    
+    if annoFile=='h.all.v5.0.symbols.gmt.txt':    
+        content = [anno.split('\t') for anno in content]
+    else:
+        content = [anno.split(' ') for anno in content]
+
+
+    terms = []
+    annotated_genes = []
+    for anno in content:
+        terms.append(anno[0])
+        if annoFile=='h.all.v5.0.symbols.gmt.txt':
+            anno_lower = [gene.title() for gene in anno[2:]] 
+        else:
+            anno_lower = [gene.title() for gene in anno[1:]] 
+
+        annotated_genes.append(anno_lower)  
+
+
+    yname = os.path.join(data_dir,dataFile )
+    df = pd.read_csv(yname, sep=';').T
+    
+    I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=df.index, columns=terms)
+
+    for i_anno in range(len(terms)):      
+        anno_expressed = list()
+        for g in annotated_genes[i_anno]:
+            if g in I.index:
+                anno_expressed.append(g)    
+        I.loc[anno_expressed,terms[i_anno]]=1.   
+
+    if niceTerms==True:
+        if annoFile=='h.all.v5.0.symbols.gmt.txt':
+            substring='HALLMARK_'
+        elif annoFile=='c2.cp.reactome.v4.0.symbols.gmt.txt':
+            substring=='REACTOME_'
+        else:
+            substring==' '        
+
+        terms = [term[term.find(substring)+len(substring):30] for term in terms]
+        terms = [term.capitalize().replace('_',' ') for term in terms]
+
+    data_out = {}
+    data_out['terms'] = SP.array(terms)
+    data_out['Y'] = df.values
+    data_out['I'] = I.values
+    data_out['genes'] = df.index
+    data_out['lab'] = df.columns
+    return data_out
 
 
 

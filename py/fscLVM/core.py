@@ -96,7 +96,7 @@ class CSparseFA(AExpressionModule):
     def getName(self,base_name='fscLVM'):
         """return a name summarising the  main parameters"""
 
-        name = "%s,'_unannotated_' %s,'_unannotated-sparse_', %s, '_it_',%s" % (base_name,self.nLatent,self.nLatentSparse, self.iterationCount)
+        name = "%s_unannotated_%s_unannotated-sparse_%s_it_%s" % (base_name,self.nLatent,self.nLatentSparse, self.iterationCount)
         return name
 
     def getF(self):
@@ -154,18 +154,23 @@ class CSparseFA(AExpressionModule):
 
   
 
-    def getFactors(self, unannotated=True):
+    def getFactors(self, ids=None, unannotated=True):
         """Get factors 
 
             Args:
                 unannotated: Boolean variable indicating whether to return also unannotated factors. DEfaults to true
 
         """        
-        if unannotated==True:
-            return self.S.E1 
+        if ids==None:
+            if unannotated==True:
+                return self.S.E1 
+            else:
+                idxAnno = setxor1d(SP.arange(self.terms), SP.hstack([self.iLatent, self.iLatentSparse]))
+                return self.S.E1[:,idxAnno]
         else:
-            idxAnno = setxor1d(SP.arange(self.terms), SP.hstack([self.iLatent, self.iLatentSparse]))
-            return self.S.E1[:,idxAnno]
+            idx=[list(self.terms).index(id_i) for id_i in ids]
+            return self.S.E1[:,SP.array(idx)]
+
 
 
 
@@ -261,7 +266,7 @@ class CSparseFA(AExpressionModule):
         return Ycorr
              
 
-    def iterate(self, nIterations=None, forceIterations=False, tolerance=1e-8, minIterations=700):
+    def train(self, nIterations=None, forceIterations=False, tolerance=1e-8, minIterations=700):
         """Iterate updates of weights (with spike-and-slab prior), ARD parameters, factors, annd noise parameters.
 
         Args:
@@ -461,6 +466,16 @@ class CSparseFA(AExpressionModule):
         nChanged = SP.sum((self.Pi>.5)!=(self.W.C[:,:,0]>.5), 0)[(self.nLatent+self.nLatentSparse):]*1.0
         nChangedRel = nChanged/SP.sum((self.Pi>.5), 0)[(self.nLatent+self.nLatentSparse):]
         return (nChanged, nChangedRel)
+
+
+    def getChanged(self, theshold=0.5):
+        """ Return number of annotations changed by the model (sum of included and exluded genes )
+        """
+
+        changed = ((self.Pi>threshold)!=(self.W.C[:,:,0]>threshold), 0)[(self.nLatent+self.nLatentSparse):]
+        
+        return changed
+
 
     def printDiagnostics(self):
         """ Print diagnostics of the model. If more than 100% of gene annotations are for at least one factor, the model should be re-fitted with sparse unannotated facotrs.

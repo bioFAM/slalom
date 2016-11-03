@@ -8,5 +8,6 @@ try:
 except _DistributionNotFound:
     __version__ = 'unknown'
 
-from .utils import (initFA, load_hdf5, preTrain, plotTerms, plotFactors, plotFA, saveFA, dumpFA)
+from .utils import (initFA, load_hdf5, load_txt, preTrain, plotTerms, plotFactors, plotFA, saveFA, dumpFA)
 from .core import (CSparseFA)
+

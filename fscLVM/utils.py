@@ -14,11 +14,11 @@
 
 from sklearn.decomposition import RandomizedPCA,PCA
 import h5py
+import pdb
 import scipy as SP
 import re
 import matplotlib as mpl
 import matplotlib.lines as mlines
-mpl.use('Agg')
 import pylab as plt
 import os
 import brewer2mpl
@@ -27,9 +27,6 @@ import sys
 import fscLVM
 import pandas as pd
 from .bayesnet.vbfa import *
-
-data_dir = '../../../data/'
-out_base = './../results/'
 
 def simpleaxis(ax):
     ax.spines['top'].set_visible(False)
@@ -46,32 +43,28 @@ def secdev(x):
     return 1/(2*SP.pi)*(SP.exp(-x*x/2.))*(x*x-1)
     
     
-def saveFA(FA, out_name=None, saveF=False, out_dir='./'):
-    """Saves output of fscLVM.CSparseFA object
+def saveFA(FA, out_name=None, saveF=False):
+    """Saves output of fscLVM.CSparseFA object as hdf5 file
 
     Args:
         FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
         out_name                         (str): Name of hdf file to save the model to. Default is `None' for which a filename is created automatically.
         saveF                           (bool): Boolean variable indicating whether to save the imputed expression space.
-        out_dir                          (str): data directory where to save the outpout
-                                                                      
     """    
 
     if out_name==None:
-        out_name = os.path.join(out_dir,FA.getName()+'.hdf5')
-    out_file = h5py.File(out_name,'w')    
-    out_file['relevance'] = FA.getRelevance()
-    out_file['W'] = FA.getW()
-    out_file['X'] = FA.getFactors()     
-    out_file['Z'] = FA.getZ()
-    out_file['I'] = FA.getAnnotations()
-    out_file['terms'] = FA.getTerms()
-    out_file['idx_genes'] = FA.idx_genes
+        out_name = FA.getName()+'.hdf5'
+    out_file = h5py.File(out_name,'w')
+    out_file.create_dataset(name='relevance',data=FA.getRelevance())
+    out_file.create_dataset(name='W',data=FA.getW())
+    out_file.create_dataset(name='X',data=FA.getFactors())
+    out_file.create_dataset(name='Z',data=FA.getZ())
+    out_file.create_dataset(name='I',data=FA.getAnnotations())
+    out_file.create_dataset(name='terms',data=SP.array(FA.getTerms(),dtype='|S30'))
+    out_file.create_dataset(name='idx_genes',data=FA.idx_genes)
     if saveF==True:
-        out_file['F'] = FA.getF()
-              
+        out_file.create_dataset(name='F',data=FA.getF())
     out_file.close()    
-
 
 
 def dumpFA(FA):
@@ -109,10 +102,10 @@ def loadFA(out_name):
     
     
 def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None, isCont=True,madFilter=0.4):
-    """Scatter plot of 2 factors
+    """Scatter plot of 2 selected factors
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
+        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         idx1                    (int): Index of first factor to be plotted
         idx2                    (int): Index of second factor to be plotted
         lab             (vector_like): Vector of labels for each data point
@@ -123,10 +116,10 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None
                                         For large datsets this can be set to 0.                                           
      """       
 
-    if FA==None and X==None:
+    if FA is None and X is None:
         raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
 
-    if FA!=None:
+    if FA is not None:
         S = FA.getFactors()
         alpha = FA.getRelevance()
         terms = FA.getTerms()
@@ -177,9 +170,9 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
     """Plot terms and their respective relevance
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
+        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         madFilter          (float)           : Filter factors by this mean absolute deviation to exclude outliers. 
-                                                For large datsets this can be set to 0.
+                                                For larger datasets this can be set to 0.
     """    
 
     if FA!=None:
@@ -203,7 +196,7 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
     plt.show()
     
     
-
+#OS: plotRelevance ? Perhaps better than plotFA
 def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=False):
     """Plot results of f-scLVM
 
@@ -211,12 +204,12 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     Top panel: Gene set augmentation, showing the number of genes added (red) and removed (blue) by the model for each factor.
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
+        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         Nactive                                  (int): Numer of terms to be plotted
         stacked                                 (bool): Boolean variable indicating whether bars should be stacked
-        db                                      (str): Name of database used, eihter 'MSigDB' or 'REACTOME'
+        db                                      (str): Name of database used, either 'MSigDB' or 'REACTOME'
         madFilter                              (float): Filter factors by this mean absolute deviation to exclude outliers. 
-                                                        For large datsets this can be set to 0.
+                                                        For large datasets this can be set to 0.
         unannotated                             (bool): Indicates whether also unannotated factors should be plotted. Defaults to False.
 
     """
@@ -236,7 +229,7 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     pattern_hidden = re.compile('hidden*')
     pattern_bias = re.compile('bias')
 
-
+    #OS: why do you need to know the database for this? Seems odd.
     if db=='REACTOME':
         substring = 'REACTOME_'
     else:
@@ -438,10 +431,6 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
         A vector containing the initial update order of the terms
     """
 
-
-    #import fscLVM.core as fscLVM
-
-
     init_params = {}
     init_params['noise'] = noise
     init_params['iLatent'] = SP.where(terms=='hidden')[0]    
@@ -511,7 +500,6 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
         FArev.update() 
             
     #import pdb
-    #pdb.set_trace()
     IpiM = (-(0.5*(1./FArev.Alpha.E1[SP.argsort(mRangeRev)][nFix:])+.5*(1./FA.Alpha.E1[SP.argsort(mRange)][nFix:]))).argsort()    
 
 #    IpiM = (-(0.5*(1./FArev.Alpha.E1[SP.argsort(mRangeRev)][nFix:]*FArev.S.E1[:,SP.argsort(mRangeRev)][:,nFix:].std(0))+.5*(1./FA.Alpha.E1[SP.argsort(mRange)][nFix:]*FA.S.E1[:,SP.argsort(mRange)][:,nFix:].std(0)))).argsort()    
@@ -539,48 +527,59 @@ def load_hdf5(dFile, data_dir='../../../data/'):
     data['Y'] = data.pop('Yhet').T
     return data
 
-
-def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):  
+#OS: It is a function that loads a file, I would drop all the "data_dir" stuff in utils.py
+#there no python function that take directories and filnames separately; it's just a fully qualifying filename
+def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=','):  
     """Load input file for f-scLVM from txt files.
 
     Loads an txt files and extracts all the inputs required by f-scLVM 
 
     Args:
-        dataFile (str): String contaning the file name of the csv file with the normalised gene expression data
-        annoFile (str):  String contaning the file name of the txt file containing the gene set annotations. Each line corresponds t 
+        dataFile (str): Strong containing the file name of the text file with the expression levels
+        dataFile_delimiter (str): delimiter for reading the data_file. Defaults to ','. 
+        annoFile (str): String containing the file name of the txt file containing the gene set annotations. Each line corresponds t 
                         one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
-        data_dir    (str): Name of the directory containing the input hdf5 file.
-        niceTerms    (bool): Indicates whether to nice terms (omit pre-fix, capitalise, shorten). Defaults to true.
+        annoDB (str)      : database file (MsigDB/REACTOME)                        
+        niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
 
 
     Returns:
         An dictionary containing all the inputs required by f-scLVM.
     """    
 
-    fname = os.path.join(data_dir, annoFile)
-    with open(fname) as f:
+    if not os.path.exists(annoFile):
+        raise Exception('annotation file (%s) not found' % annoFile)
+
+    if not os.path.exists(dataFile):
+        raise Exception('data file file (%s) not found' % dataFile)
+
+    annoDB = annoDB.lower()
+    if not annoDB in ['msigdb','reactome']:
+        raise Exception('database (db) needs to be either msigdb or reactome')
+
+    with open(annoFile) as f:
         content = [x.strip('\n') for x in f.readlines()]
-    
-    if annoFile=='h.all.v5.0.symbols.gmt.txt':    
+   
+    if annoDB=='msigdb':
         content = [anno.split('\t') for anno in content]
     else:
         content = [anno.split(' ') for anno in content]
-
+    #OS: I don't think the decision is needed. split does consider whit spaces and TAB. Is there a reason for this hard coded stuff?
+    #content = [anno.split() for anno in content]
 
     terms = []
     annotated_genes = []
     for anno in content:
         terms.append(anno[0])
-        if annoFile=='h.all.v5.0.symbols.gmt.txt':
+        if annoDB=='msigdb':
             anno_lower = [gene.title() for gene in anno[2:]] 
         else:
             anno_lower = [gene.title() for gene in anno[1:]] 
 
         annotated_genes.append(anno_lower)  
 
-
-    yname = os.path.join(data_dir,dataFile )
-    df = pd.read_csv(yname, sep=';').T
+    #read data file
+    df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
     
     I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=[ind.title() for ind in df.index], columns=terms)
 
@@ -592,7 +591,7 @@ def load_txt(dataFile,annoFile, data_dir='../../../data/', niceTerms=True):
         I.loc[anno_expressed,terms[i_anno]]=1.   
 
     if niceTerms==True:
-        if annoFile=='h.all.v5.0.symbols.gmt.txt':
+        if annoDB=='msigdb':
             substring='HALLMARK_'
         elif annoFile=='c2.cp.reactome.v4.0.symbols.gmt.txt':
             substring='REACTOME_'

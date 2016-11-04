@@ -3,21 +3,24 @@
 
 ##What is f-scLVM?
 
-f-scLVM is a scalable modelling framework for single-cell RNA-seq data that can be used to dissect and model single-cell transcriptome heterogeneity, thereby allowing to identify biological drivers of cell-to-cell variability and model confounding factors.
+f-scLVM is a scalable modelling framework for single-cell RNA-seq data that uses gene set annotations to dissect single-cell transcriptome heterogeneity, thereby allowing to identify biological drivers of cell-to-cell variability and model confounding factors.
 
 
-Software by Florian Buettner and Oliver Stegle. f-scLVM is explained in  detail in the accompanying publication [1]. 
+Software by Florian Buettner and Oliver Stegle. For detail please see the accompanying publication [1]. 
 
 ##Philosophy
 
-Observed heterogeneity in single-cell profiling data is multi-factorial. f-scLVM provides an efficient framework for unravelling this heterogeneity by simultaneously inferring latent factors reflecting a large number of potential sources of variability. scLVM builds on sparse factor analysis models. We implement an efficient approximate inference scheme which allows the application of f-scLVM to very large datasets containing up to 100,000 cells.
+Observed heterogeneity in single-cell profiling data is multi-factorial. f-scLVM provides an efficient framework for unravelling this heterogeneity by simultaneously inferring latent factors that reflect annotated factors from pathway databases, as well as unannotated factors that capture variation outside the annotation.
+f-scLVM builds on sparse factor analysis models, for which this implementation provides efficient approximate inference using Variational Bayes, allowing the application of f-scLVM to very large datasets containing up to 100,000 cells.
 
 ##Installation requirements:
 
-f-scLVM requires Python 2.7 with
+f-scLVM requires Python 2.7 or newer with
   - scipy, h5py, numpy, matplotlib, scikit-learn, re
   
 f-scLVM can be installed via pip with `pip install fscLVM`.
+For best results, we recommend the ANACONDA python distribution.
+
 
 ##How to use f-scLVM?
 The current software version should be considered as beta. More extensive documentation, tutorials and examples will be available soon. 
@@ -32,3 +35,5 @@ Documentation of the code can be found [here](http://f-sclvm.readthedocs.io).
 
 [![Build Status](https://travis-ci.org/PMBio/f-scLVM.svg?branch=master)](https://travis-ci.org/PMBio/f-scLVM)   [![Documentation Status](https://readthedocs.org/projects/f-sclvm/badge/?version=latest)](http://f-sclvm.readthedocs.io/en/latest/?badge=latest)
 
+##License
+See [Apache License (Version 2.0, January 2004)](https://github.com/PMBio/f-scLVM/blob/master/license.txt).

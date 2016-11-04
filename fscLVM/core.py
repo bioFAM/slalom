@@ -16,10 +16,6 @@
 # factorial single cell latent variable model
 # this class implements  a  variational inference procedure for a sparse model with different observation noise models.
 
-#import matplotlib as mpl
-#import matplotlib.lines as mlines
-#mpl.use('Agg')
-#import pylab as plt
 from .bayesnet.vbfa import *
 import scipy as SP
 from sklearn import metrics

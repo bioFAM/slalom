@@ -239,8 +239,10 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
 
     if db=='REACTOME':
         substring = 'REACTOME_'
-    else:
+    elif db=='MSigDB':
         substring='HALLMARK_'
+    else:
+        substring = ''
 
     terms = FA.getTerms()
     X = FA.getFactors()

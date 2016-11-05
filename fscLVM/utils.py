@@ -510,21 +510,20 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     return Ilabel
 
 
-def load_hdf5(dFile, data_dir='../../../data/'):  
+def load_hdf5(dFile):
     """Load input file for f-scLVM
 
     Loads an hdf file and extracts all the inputs required by f-scLVM 
 
     Args:
         dFile (str): String contaning the file name of the hdf file with the input data.
-        data_dir    (str): Name of the directory containing the input hdf5 file.
 
 
     Returns:
         An dictionary containing all the inputs required by f-scLVM.
     """    
 
-    dataFile = h5py.File(os.path.join(data_dir, dFile), 'r')
+    dataFile = h5py.File(dFile, 'r')
     data = smartGetDictHdf5(dataFile)
     data['Y'] = data.pop('Yhet').T
     return data

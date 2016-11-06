@@ -100,7 +100,8 @@ def loadFA(out_name):
         res[key] = out_file[key]    
     return res
     
-    
+
+#OS: terms not used in the function and not documented...    
 def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None, isCont=True,madFilter=0.4):
     """Scatter plot of 2 selected factors
 

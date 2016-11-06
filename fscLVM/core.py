@@ -120,6 +120,13 @@ class CSparseFA(AExpressionModule):
         """        
         return self.terms        
 
+    def getTermIndex(self,terms):
+        """get term index. Creates an index list based on a list of named terms
+            Args:
+                terms             (list): list with terms
+        """
+        index=SP.array([list(self.terms).index(id_i) for id_i in terms])
+        return index
 
     def getAnnotations(self, unannotated=True):
         """Get annotations.
@@ -136,39 +143,79 @@ class CSparseFA(AExpressionModule):
             idxAnno = setxor1d(SP.arange(self.terms), SP.hstack([self.iLatent, self.iLatentSparse]))
             return (self.Pi[:,idxAnno]>.5)
 
-    def getW(self):
+    def getW(self,terms=None):
         """Get weights (continous part of spike-and-slab prior) :math:`Q(\widetilde{W})`
+            Args:
+                term        (str): optional list of terms for which weights are returned. Default None=all terms.
+
 
         """        
-        return self.W.E1
+        if terms is None:
+            return self.W.E1 
+        else:
+            #subset terms
+            term_index = self.getTermIndex(terms)
+            return self.W.E1[:,term_index]                                        
 
-    def getZ(self):
+    def getZ(self,terms=None):
         """Get posterior of Z (Bernourlli part part of spike-and-slab prior) :math:`Q(Z)`
-
+            Args:
+                term        (str): optional list of terms for which weights are returned. Default None=all terms.
         """        
-        return self.W.C[:,:,0]                   
+        if terms is None:
+            return self.W.C[:,:,0]                   
+        else:
+            term_index = self.getTermIndex(terms)
+            return self.W.C[:,term_index,0]                   
 
-  
+    def getPi(self,terms=None):
+        """Get prior on Z (Bernourlli part part of spike-and-slab prior)
+            Args:
+                term        (str): optional list of terms for which weights are returned. Default None=all terms.
+        """        
+        if terms is None:
+            return self.Pi
+        else:
+            term_index = self.getTermIndex(terms)
+            return self.Pi[:,term_index]
 
-    def getFactors(self, ids=None, unannotated=True):
+    def getZchanged(self,terms=None):
+        """get matrix indicating whether the posterior distribution has changed for individual terms/genes
+            Args:
+                term        (str): optional list of terms for which weights are returned. Default None=all terms.
+            Rv:
+                matrix [0,-1,1]: 0: no change, -1: loss, +1: gain
+        """
+        Z = self.getZ(terms)
+        Pi = self.getPi(terms)
+        I = SP.zeros([Z.shape[0],Z.shape[1]],dtype='int8')
+        Igain = (Z>.5) & (Pi<.5)
+        Iloss = (Z<.5) & (Pi>.5)
+        I[Igain] = 1
+        I[Iloss] = -1
+        return I
+
+
+    #OS: do we want to include unannotated=True/False? I would treat them like factors and use unique names.
+    #    can we call them hidden1, hidden2, sparse_hidden1, etc. ? This would make the handling much easier...
+    #    so the proposal is ther getZ, getPi and getFactors all have an argument terms=None/[]
+    #    finally, should we call this getX to be consistent with Pi/Z ?  
+    def getFactors(self, terms=None, unannotated=True):
         """Get factors 
 
             Args:
                 unannotated: Boolean variable indicating whether to return also unannotated factors. DEfaults to true
 
         """        
-        if ids==None:
+        if terms==None:
             if unannotated==True:
                 return self.S.E1 
             else:
                 idxAnno = setxor1d(SP.arange(self.terms), SP.hstack([self.iLatent, self.iLatentSparse]))
                 return self.S.E1[:,idxAnno]
         else:
-            idx=[list(self.terms).index(id_i) for id_i in ids]
-            return self.S.E1[:,SP.array(idx)]
-
-
-
+            idx=self.getTermIndex(terms)
+            return self.S.E1[:,idx]
 
 
     # def plotTerms(self, madFilter=.4):
@@ -455,6 +502,7 @@ class CSparseFA(AExpressionModule):
             Xi = SP.dot(self.S.E1,(self.W.C[:, :,0]*self.W.E1).transpose())
             self.meanX = Xi - self.fprime(Xi, self.Z.E1)/SP.repeat(self.kappa[:,SP.newaxis],self._N,1).T
 
+    #OS: not sure this does the write thing either...
     def getNchanged(self):
         """ Return number of annotations changed by the model (sum of included and exluded genes )
         """
@@ -463,7 +511,7 @@ class CSparseFA(AExpressionModule):
         nChangedRel = nChanged/SP.sum((self.Pi>.5), 0)[(self.nLatent+self.nLatentSparse):]
         return (nChanged, nChangedRel)
 
-
+    #OS: does not work with python 3    
     def getChanged(self, threshold=0.5):
         """ Return number of annotations changed by the model (sum of included and exluded genes )
         """

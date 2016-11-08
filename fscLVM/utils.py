@@ -154,7 +154,7 @@ def plotFactors(terms=None,FA=None, X = None,  lab=[],  cols=None, isCont=True,m
             cols = bmap.hex_colors         
         pList=list()
         for i in range(len(X1)):
-            pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(uLab==lab[i])[0]]))
+            pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(uLab==lab[i])[0][0]]))
         plt.xlabel(xlab)
         plt.ylabel(ylab)
         lList=list()

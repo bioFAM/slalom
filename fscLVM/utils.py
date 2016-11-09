@@ -62,7 +62,8 @@ def saveFA(FA, out_name=None, saveF=False):
     out_file.create_dataset(name='I',data=FA.getAnnotations())
     out_file.create_dataset(name='terms',data=SP.array(FA.getTerms(),dtype='|S30'))
     out_file.create_dataset(name='idx_genes',data=FA.idx_genes)
-    out_file.create_dataset(name='gene_ids',data=FA.gene_ids)
+    if not FA.gene_ids is None: 
+        out_file.create_dataset(name='gene_ids',data=FA.gene_ids)
     if saveF==True:
         out_file.create_dataset(name='F',data=FA.getF())
     out_file.close()    
@@ -87,6 +88,8 @@ def dumpFA(FA):
     out_file['I'] = FA.getAnnotations()
     out_file['terms'] = FA.getTerms()
     out_file['idx_genes'] = FA.idx_genes
+    if not FA.gene_ids is None: 
+        out_file['gene_ids'] = FA.gene_ids
               
     return out_file      
 
@@ -102,7 +105,7 @@ def loadFA(out_name):
     return res
     
 
-def plotFactors(terms=None,FA=None, X = None,  lab=[],  cols=None, isCont=True,madFilter=0.4):
+def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,madFilter=0.4):
     """Scatter plot of 2 selected factors
 
     Args:
@@ -123,25 +126,15 @@ def plotFactors(terms=None,FA=None, X = None,  lab=[],  cols=None, isCont=True,m
         raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
 
     if FA is not None:
-
-        idx = FA.getTermIndex(terms)
-        if len(idx==0):
-            raise Exception('Please provide valid term ids.  list of term ids can be obtainied from a factor analysis object  using its getTerms method.')
-        S = FA.getX()
-        alpha = FA.getRelevance()
-        terms = FA.getTerms()
-        MAD = mad(FA.S.E1)
-        alpha = (MAD>madFilter)*alpha
-        idxF = SP.argsort(-alpha)    
-        X1 = FA.S.E1[:,idxF[idx[0]]]
-        X2 = FA.S.E1[:,idxF[idx[1]]]
-        xlab = terms[idxF[idx[0]]]
-        ylab = terms[idxF[idx[1]]]            
+        S = FA.getX(terms)
+        X1 = S[:,0]
+        X2 = S[:,1]        
     else:
         X1 = X[:,0]
         X2 = X[:,1]
-        xlab = terms[0]
-        ylab = terms[1]        
+
+    xlab = terms[0]
+    ylab = terms[1]        
     
     if isCont==False:
         uLab = SP.unique(lab)  
@@ -167,8 +160,8 @@ def plotFactors(terms=None,FA=None, X = None,  lab=[],  cols=None, isCont=True,m
             plt.scatter(X1, X2, c=lab, s=20)
         else:
             plt.scatter(X1, X2, s=20)
-        plt.xlabel(terms[idx1])
-        plt.ylabel(terms[idx2])
+        plt.xlabel(terms[0])
+        plt.ylabel(terms[1])
     plt.show()
 
 
@@ -216,7 +209,7 @@ def plotLoadings(FA, term, n_genes = 10):
     Zchanged = FA.getZchanged([term])[:,0]
     W        = FA.getW([term])[:,0]
     Z        = FA.getZ([term])[:,0]
-    gene_labels = FA.gene_ids
+    gene_labels = SP.array(FA.gene_ids)
 
     #plot weights
     
@@ -226,7 +219,6 @@ def plotLoadings(FA, term, n_genes = 10):
     Igain = (Zchanged[gene_index]==1)
     Ielse = (Zchanged[gene_index]==0)
 
-    #pdb.set_trace()
     y = SP.arange(len(gene_index))
     if Ielse.any():
         plt.plot(abs(W[gene_index][Ielse]*Z[gene_index][Ielse]),y[Ielse],'k.',label='pre annotated')
@@ -610,12 +602,12 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
     with open(annoFile) as f:
         content = [x.strip('\n') for x in f.readlines()]
    
-    if annoDB=='msigdb':
-        content = [anno.split('\t') for anno in content]
-    else:
-        content = [anno.split(' ') for anno in content]
+    #if annoDB=='msigdb':
+    #    content = [anno.split('\t') for anno in content]
+    #else:
+    #   content = [anno.split(' ') for anno in content]
     #OS: I don't think the decision is needed. split does consider whit spaces and TAB. Is there a reason for this hard coded stuff?
-    #content = [anno.split() for anno in content]
+    content = [anno.split() for anno in content]
 
     terms = []
     annotated_genes = []
@@ -663,7 +655,7 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
 
 
 def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
-            noise='gauss', minGenes=20, do_preTrain=True):
+            noise='gauss', minGenes=20, do_preTrain=True, nFix=None):
     """Initialise the f-scLVM factor analysis model.
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
@@ -772,11 +764,13 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
         num_terms += nHidden
 
     if do_preTrain==True:   
-        Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=None)
+        Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=nFix)
         pi = pi[:,Ilabel]
         terms = terms[Ilabel]    
 
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
+    if not gene_ids is None:
+        gene_ids = list(gene_ids)
     FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids)   
     FA.init(**init)  
 

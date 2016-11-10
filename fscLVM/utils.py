@@ -121,6 +121,13 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
         madFilter             (float): Filter factors by this mean absolute deviation to exclude outliers. 
                                         For large datsets this can be set to 0.                                           
      """       
+    pltparams = {'backend': 'pdf',
+              'axes.labelsize': 12,
+              'font.size': 12,
+              'legend.fontsize': 13,
+              'xtick.labelsize': 12,
+              'ytick.labelsize': 12,
+              'text.usetex': False}
 
     if FA is None and X is None:
         raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
@@ -135,7 +142,8 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
 
     xlab = terms[0]
     ylab = terms[1]        
-    
+    fig = plt.figure(figsize=(5,5))
+
     if isCont==False:
         uLab = SP.unique(lab)  
         if cols==None:
@@ -148,8 +156,7 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
         pList=list()
         for i in range(len(X1)):
             pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(uLab==lab[i])[0][0]]))
-        plt.xlabel(xlab)
-        plt.ylabel(ylab)
+
         lList=list()
         for i in range(len(uLab)):
             lList.append( mlines.Line2D([], [], color=cols[i], marker='.',
@@ -160,10 +167,10 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
             plt.scatter(X1, X2, c=lab, s=20)
         else:
             plt.scatter(X1, X2, s=20)
-        plt.xlabel(terms[0])
-        plt.ylabel(terms[1])
-    plt.show()
-
+    plt.xlabel(terms[0],fontsize = 14)
+    plt.ylabel(terms[1],fontsize = 14)
+    
+    return fig
 
     
 def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
@@ -206,6 +213,7 @@ def plotLoadings(FA, term, n_genes = 10):
 
     """
 
+              
     Zchanged = FA.getZchanged([term])[:,0]
     W        = FA.getW([term])[:,0]
     Z        = FA.getZ([term])[:,0]
@@ -219,6 +227,7 @@ def plotLoadings(FA, term, n_genes = 10):
     Igain = (Zchanged[gene_index]==1)
     Ielse = (Zchanged[gene_index]==0)
 
+    fig = plt.figure(figsize=(5,5))
     y = SP.arange(len(gene_index))
     if Ielse.any():
         plt.plot(abs(W[gene_index][Ielse]*Z[gene_index][Ielse]),y[Ielse],'k.',label='pre annotated')
@@ -226,12 +235,14 @@ def plotLoadings(FA, term, n_genes = 10):
         plt.plot(abs(W[gene_index][Igain]*Z[gene_index][Igain]),y[Igain],'r.',label='gains')
 
     
-    plt.xlabel('Abs. weight')
-    plt.ylabel('Genes')    
-    plt.yticks(y,gene_labels[gene_index])
+    plt.xlabel('Abs. weight',fontsize = 14)
+    plt.ylabel('Genes',fontsize = 14)    
+    plt.yticks(y,gene_labels[gene_index],fontsize = 14)
+    plt.xticks(fontsize = 13)
         
     plt.legend()
     plt.show()
+    return fig
 
 
     

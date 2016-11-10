@@ -57,11 +57,13 @@ def saveFA(FA, out_name=None, saveF=False):
     out_file = h5py.File(out_name,'w')
     out_file.create_dataset(name='relevance',data=FA.getRelevance())
     out_file.create_dataset(name='W',data=FA.getW())
-    out_file.create_dataset(name='X',data=FA.getFactors())
+    out_file.create_dataset(name='X',data=FA.getX())
     out_file.create_dataset(name='Z',data=FA.getZ())
     out_file.create_dataset(name='I',data=FA.getAnnotations())
     out_file.create_dataset(name='terms',data=SP.array(FA.getTerms(),dtype='|S30'))
     out_file.create_dataset(name='idx_genes',data=FA.idx_genes)
+    if not FA.gene_ids is None: 
+        out_file.create_dataset(name='gene_ids',data=FA.gene_ids)
     if saveF==True:
         out_file.create_dataset(name='F',data=FA.getF())
     out_file.close()    
@@ -81,11 +83,13 @@ def dumpFA(FA):
     out_file ={}
     out_file['relevance'] = FA.getRelevance()
     out_file['W'] = FA.getW()
-    out_file['X'] = FA.getFactors()     
+    out_file['X'] = FA.getX()     
     out_file['Z'] = FA.getZ()
     out_file['I'] = FA.getAnnotations()
     out_file['terms'] = FA.getTerms()
     out_file['idx_genes'] = FA.idx_genes
+    if not FA.gene_ids is None: 
+        out_file['gene_ids'] = FA.gene_ids
               
     return out_file      
 
@@ -100,13 +104,15 @@ def loadFA(out_name):
         res[key] = out_file[key]    
     return res
     
-    
-def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None, isCont=True,madFilter=0.4):
+
+def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,madFilter=0.4):
     """Scatter plot of 2 selected factors
 
     Args:
         FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
-        idx1                    (int): Index of first factor to be plotted
+        terms                    (list): List of strings containing names of factors to be plotted; if a factor analysis object is provided 
+                                        the corresponding factors are automatically extracted, otherwise this argument will only 
+                                        be used to label the axes
         idx2                    (int): Index of second factor to be plotted
         lab             (vector_like): Vector of labels for each data point
         isCont                 (bool): Boolean variable indicating whether labels should be interpreted as discrete or continuous
@@ -115,27 +121,29 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None
         madFilter             (float): Filter factors by this mean absolute deviation to exclude outliers. 
                                         For large datsets this can be set to 0.                                           
      """       
+    pltparams = {'backend': 'pdf',
+              'axes.labelsize': 12,
+              'font.size': 12,
+              'legend.fontsize': 13,
+              'xtick.labelsize': 12,
+              'ytick.labelsize': 12,
+              'text.usetex': False}
 
     if FA is None and X is None:
         raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
 
     if FA is not None:
-        S = FA.getFactors()
-        alpha = FA.getRelevance()
-        terms = FA.getTerms()
-        MAD = mad(FA.S.E1)
-        alpha = (MAD>madFilter)*alpha
-        idxF = SP.argsort(-alpha)    
-        X1 = FA.S.E1[:,idxF[idx1]]
-        X2 = FA.S.E1[:,idxF[idx2]]
-        xlab = terms[idxF[idx1]]
-        ylab = terms[idxF[idx2]]            
+        S = FA.getX(terms)
+        X1 = S[:,0]
+        X2 = S[:,1]        
     else:
         X1 = X[:,0]
         X2 = X[:,1]
-        xlab = terms[0]
-        ylab = terms[1]        
-    
+
+    xlab = terms[0]
+    ylab = terms[1]        
+    fig = plt.figure(figsize=(5,5))
+
     if isCont==False:
         uLab = SP.unique(lab)  
         if cols==None:
@@ -147,9 +155,8 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None
             cols = bmap.hex_colors         
         pList=list()
         for i in range(len(X1)):
-            pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(lab[i]==uLab)[0]]))
-        plt.xlabel(xlab)
-        plt.ylabel(ylab)
+            pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(uLab==lab[i])[0][0]]))
+
         lList=list()
         for i in range(len(uLab)):
             lList.append( mlines.Line2D([], [], color=cols[i], marker='.',
@@ -160,10 +167,10 @@ def plotFactors(FA=None,idx1=0, idx2=1, X = None,  lab=[], terms=None, cols=None
             plt.scatter(X1, X2, c=lab, s=20)
         else:
             plt.scatter(X1, X2, s=20)
-        plt.xlabel(terms[idx1])
-        plt.ylabel(terms[idx2])
-    plt.show()
-
+    plt.xlabel(terms[0],fontsize = 14)
+    plt.ylabel(terms[1],fontsize = 14)
+    
+    return fig
 
     
 def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
@@ -176,7 +183,7 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
     """    
 
     if FA!=None:
-        S = FA.getFactors()
+        S = FA.getX()
         alpha = FA.getRelevance()
         terms = FA.getTerms()
     else:
@@ -195,9 +202,51 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
     plt.ylabel("Relevance score")
     plt.show()
     
+
+def plotLoadings(FA, term, n_genes = 10):
+    """Plot highest loadings of a factor
+
+    Args:
+        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
+        term                                  (str): Name of facotr for which loadings are to be plotted
+        n_genes                                 (int): Number of loadings to be shown
+
+    """
+
+              
+    Zchanged = FA.getZchanged([term])[:,0]
+    W        = FA.getW([term])[:,0]
+    Z        = FA.getZ([term])[:,0]
+    gene_labels = SP.array(FA.gene_ids)
+
+    #plot weights
     
-#OS: plotRelevance ? Perhaps better than plotFA
-def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=False):
+    Wabs = SP.absolute(W)*SP.absolute(Z)
+    gene_index = SP.argsort(-Wabs)[:n_genes]
+
+    Igain = (Zchanged[gene_index]==1)
+    Ielse = (Zchanged[gene_index]==0)
+
+    fig = plt.figure(figsize=(5,5))
+    y = SP.arange(len(gene_index))
+    if Ielse.any():
+        plt.plot(abs(W[gene_index][Ielse]*Z[gene_index][Ielse]),y[Ielse],'k.',label='pre annotated')
+    if Igain.any():
+        plt.plot(abs(W[gene_index][Igain]*Z[gene_index][Igain]),y[Igain],'r.',label='gains')
+
+    
+    plt.xlabel('Abs. weight',fontsize = 14)
+    plt.ylabel('Genes',fontsize = 14)    
+    plt.yticks(y,gene_labels[gene_index],fontsize = 14)
+    plt.xticks(fontsize = 13)
+        
+    plt.legend()
+    plt.show()
+    return fig
+
+
+    
+def plotRelevance(FA,Nactive=20,stacked=True, madFilter=0.4,annotated=True,unannotated=False,unannotated_sparse=False):
     """Plot results of f-scLVM
 
     Identified factors and corresponding gene set size ordered by relevance (white = low relevance; black = high relevance). 
@@ -210,7 +259,10 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
         db                                      (str): Name of database used, either 'MSigDB' or 'REACTOME'
         madFilter                              (float): Filter factors by this mean absolute deviation to exclude outliers. 
                                                         For large datasets this can be set to 0.
-        unannotated                             (bool): Indicates whether also unannotated factors should be plotted. Defaults to False.
+        annotated                             (bool): Indicates whether  annotated factors should be plotted. Defaults to True.
+        unannotated                             (bool): Indicates whether  unannotated factors should be plotted. Defaults to False.
+        unannotated                             (bool): Indicates whether unannotated sparse factors should be plotted. Defaults to False.
+
 
     """
 
@@ -229,34 +281,29 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     pattern_hidden = re.compile('hidden*')
     pattern_bias = re.compile('bias')
 
-    #OS: why do you need to know the database for this? Seems odd.
-    if db=='REACTOME':
-        substring = 'REACTOME_'
-    elif db=='MSigDB':
-        substring='HALLMARK_'
-    else:
-        substring = ''
 
-    terms = FA.getTerms()
-    X = FA.getFactors()
-    I = FA.getAnnotations(unannotated=True)
-    Z = FA.getZ()
-    rel = FA.getRelevance()
+    terms = FA.getTerms(annotated=annotated,unannotated=unannotated,unannotated_sparse=unannotated_sparse)
 
-    Ihidden = SP.array([pattern_hidden.match(term) is not None for term in terms])
-    Ibias = SP.array([pattern_bias.match(term) is not None for term in terms])
+    i_use = list()
+    if unannotated_sparse==True:
+        i_use.extend(FA.iLatentSparse)
+    if unannotated==True:
+        i_use.extend(FA.iLatent)
+    if annotated==True:
+        i_use.extend(SP.setxor1d(SP.hstack([SP.where(FA.terms=='bias')[0],FA.iLatentSparse, FA.iLatent]), SP.arange(len(FA.terms))))
+    i_use = SP.array(i_use)
 
 
-    if unannotated==False:
-        iUse = ~Ihidden & ~Ibias
-    else:
-        iUse = ~Ibias        
+    X = FA.getX()[:,i_use]
+    Iprior = FA.getAnnotations()[:,i_use]
+    Iposterior = FA.getZ()[:,i_use]>.5
+    rel = FA.getRelevance()[i_use]
 
-    Iprior     = (I[:,iUse])
-    Iposterior = (Z[:,iUse]>0.5)
-    MAD = mad(X[:,iUse])
-    R = (MAD>madFilter)*(rel)[iUse]
-    terms = terms[iUse]
+
+
+    MAD = mad(X)
+    R = (MAD>madFilter)*(rel)
+    terms = SP.array(terms)
 
     Nactive = min(SP.sum(R>0),Nactive)
 
@@ -272,13 +319,9 @@ def plotFA(FA,Nactive=20,stacked=True, db='MSigDB', madFilter=0.4, unannotated=F
     RM = R[Iactive,SP.newaxis]
 
     xticks_range = SP.arange(Nactive)
-    terms[terms=='hidden'] = substring+'Unannotated'
-    terms[terms=='hiddenSparse'] = substring+'Unannotated-sparse'
+    terms[terms=='hidden'] = 'Unannotated'
+    terms[terms=='hiddenSparse'] = 'Unannotated-sparse'
     xticks_text  = list(terms[Iactive])
-
-
-    #xticks_text = [terms[terms.find(substring)+len(substring):30] for terms in xticks_text]
-    #xticks_text = [terms.capitalize().replace('_',' ') for terms in xticks_text]
 
 
     n_gain = []
@@ -510,27 +553,34 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     return Ilabel
 
 
-def load_hdf5(dFile, data_dir='../../../data/'):  
+def load_hdf5(dFile, anno='MSigDB'):
     """Load input file for f-scLVM
 
     Loads an hdf file and extracts all the inputs required by f-scLVM 
 
     Args:
         dFile (str): String contaning the file name of the hdf file with the input data.
-        data_dir    (str): Name of the directory containing the input hdf5 file.
 
 
     Returns:
         An dictionary containing all the inputs required by f-scLVM.
     """    
 
-    dataFile = h5py.File(os.path.join(data_dir, dFile), 'r')
+    dataFile = h5py.File(dFile, 'r')
     data = smartGetDictHdf5(dataFile)
     data['Y'] = data.pop('Yhet').T
+    if anno=='MSigDB':
+        data['I'] = data.pop("IMSigDB")
+    elif anno=='REACTOME':
+        data['I'] = data.pop("IREACTOME")
+        data['terms'] = data.pop("termsR")
+    else:
+        print('anno has to be either MSigDB or REACTOME')
+
+
     return data
 
-#OS: It is a function that loads a file, I would drop all the "data_dir" stuff in utils.py
-#there no python function that take directories and filnames separately; it's just a fully qualifying filename
+
 def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=','):  
     """Load input file for f-scLVM from txt files.
 
@@ -543,6 +593,7 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
                         one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
         annoDB (str)      : database file (MsigDB/REACTOME)                        
         niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
+        dataFile_delimiter (str): Delimiter used in dataFile; defaults to ','.
 
 
     Returns:
@@ -562,12 +613,12 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
     with open(annoFile) as f:
         content = [x.strip('\n') for x in f.readlines()]
    
-    if annoDB=='msigdb':
-        content = [anno.split('\t') for anno in content]
-    else:
-        content = [anno.split(' ') for anno in content]
+    #if annoDB=='msigdb':
+    #    content = [anno.split('\t') for anno in content]
+    #else:
+    #   content = [anno.split(' ') for anno in content]
     #OS: I don't think the decision is needed. split does consider whit spaces and TAB. Is there a reason for this hard coded stuff?
-    #content = [anno.split() for anno in content]
+    content = [anno.split() for anno in content]
 
     terms = []
     annotated_genes = []
@@ -595,7 +646,7 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
     if niceTerms==True:
         if annoDB=='msigdb':
             substring='HALLMARK_'
-        elif annoFile=='c2.cp.reactome.v4.0.symbols.gmt.txt':
+        elif annoDB=='reactome':
             substring='REACTOME_'
         else:
             substring=' '        
@@ -614,8 +665,8 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
 
 
 
-def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
-            noise='gauss', minGenes=20, do_preTrain=True):
+def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
+            noise='gauss', minGenes=20, do_preTrain=True, nFix=None):
     """Initialise the f-scLVM factor analysis model.
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
@@ -629,9 +680,10 @@ def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, 
                                  Dimension (:math:`N\\times G`).
         terms    (vector_like): Names of `K` annotated gene sets. Dimension
                                  (:math:`K\\times 0`).
-        P_I          (array_like): Inidicator matirx specifying
+        I           (array_like): Inidicator matirx specifying
                                  whether a gene is annotated to a specific factor.
                                  Dimension (:math:`G\\times K`).
+        gene_ids   (array_like): Gene identifiers (opitonal, defaults to None)
         FNR             (float): False negative rate of annotations.
                                  Defaults to 0.001
         FPR             (float): False positive rate of annotations.
@@ -642,7 +694,7 @@ def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, 
         pruneGenes         (bool): prune genes that are not annotated to a least one factor. This option allows fast inference and 
                                    should be set to `True` either if the 
                                    key objective is to rank factors or if the annotations cover all genes of interest.  
-                                   Defaults to `False`.
+                                   Defaults to `True`.
         noise              (str): Specifies the observation noise model. Should be either `'gauss'`,`'hurdle'` or `'poisson'`.
                                  Defaults to `gauss`.                                      
         minGenes          (int): minimum number of genes required per term to retain it  
@@ -661,7 +713,7 @@ def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, 
     num_terms             = I.shape[1]
 
     assert I.shape[0]==num_genes, 'annotation needs to be matched to gene input dimension'
-    #OS: check list
+
     assert noise in ['gauss','hurdle','poisson'], 'invalid noise model'
     assert 0<FNR<1, 'FNR is required to be between 0 and 1'
     assert 0<FNR<1, 'FPR is required to be between 0 and 1'
@@ -687,6 +739,8 @@ def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, 
         idx_genes  = SP.sum(I,1)>0
         Y = Y[:,idx_genes]
         pi = pi[idx_genes,:]
+        if not (gene_ids is None):
+            gene_ids = gene_ids[idx_genes]
     else:
         idx_genes = SP.arange(Y.shape[1])        
 
@@ -703,9 +757,14 @@ def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, 
             idxOnH = SP.random.choice(idxVar[:100],20, replace=False)
             piSparse[idxOnH,iH] = 0.99
         pi = SP.hstack([piSparse, pi])
-        terms = SP.hstack([SP.repeat('hiddenSparse',nHiddenSparse),terms])
+        thiddenSparse = SP.repeat('hiddenSparse',nHiddenSparse)
+        termsHiddnSparse = ['%s%s' % t for t in zip(thiddenSparse, SP.arange(nHiddenSparse))]
+        terms = SP.hstack([termsHiddnSparse,terms])
 
-    terms = SP.hstack([SP.repeat('hidden',nHidden), terms])
+    thidden = SP.repeat('hidden',nHidden)
+    termsHidden = ['%s%s' % t for t in zip(thidden, SP.arange(nHidden))]
+    terms = SP.hstack([termsHidden,terms])    
+
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])
     num_terms += nHidden
 
@@ -716,13 +775,16 @@ def initFA(Y, terms, I, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, 
         num_terms += nHidden
 
     if do_preTrain==True:   
-        Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=None)
+        Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=nFix)
         pi = pi[:,Ilabel]
         terms = terms[Ilabel]    
 
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
-    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes)   
+    if not gene_ids is None:
+        gene_ids = list(gene_ids)
+    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids)   
     FA.init(**init)  
+
     return FA   
 
 

@@ -20,7 +20,7 @@ from .bayesnet.vbfa import *
 import scipy as SP
 from sklearn import metrics
 import re
-from sklearn.decomposition import RandomizedPCA
+from sklearn.decomposition import PCA
 
 
 
@@ -674,7 +674,7 @@ class CSparseFA(AExpressionModule):
                 k+=self.nKnown
                 if Ion[:,k].sum()>5:
                     #pdb.set_trace()
-                    pca = RandomizedPCA(n_components=1, iterated_power=2)
+                    pca = PCA(n_components=1, iterated_power=2,svd_solver='randomized')
                     s0 = pca.fit_transform(Zstd[:,Ion[:,k]])
                     self.S.E1[:,k] =(s0[:,0])
                     self.S.E1[:,k] =  self.S.E1[:,k]/self.S.E1[:,k].std()

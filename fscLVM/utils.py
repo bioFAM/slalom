@@ -93,9 +93,7 @@ def dumpFA(FA):
               
     return out_file      
 
-
-    
-    
+        
     
 def loadFA(out_name):
     out_file = h5py.File(out_name,'r')    
@@ -479,6 +477,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     init_params = {}
     init_params['noise'] = noise
     init_params['iLatent'] = SP.where(terms=='hidden')[0]    
+    init_params['iLatentSparse'] = SP.array([])#SP.where(terms=='hiddenSparse')[0]    
 
     pi = P_I.copy()
     K = pi.shape[1]
@@ -527,6 +526,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
     FA = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
     FA.shuffle=True
+    FA.nScale = 30
     FA.init(**init) 
     for j in range(50):
         FA.update()      
@@ -538,6 +538,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
     FArev = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
     FArev.shuffle=True
+    FArev.nScale = 30
     FArev.init(**init) 
 
     #FArev.iterate(forceIterations=True, nIterations=nIterations)
@@ -658,12 +659,33 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
     data_out['terms'] = SP.array(terms)
     data_out['Y'] = df.values.T
     data_out['I'] = I.values
-    data_out['genes'] = df.index
+    data_out['genes'] = list(df.index)
     data_out['lab'] = df.columns
     return data_out
 
 
 
+def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
+            noise='gauss', minGenes=20, do_preTrain=True, nFix=None, initZ=None):
+
+
+    init_factors = {}
+    init_factors['initZ'] = initZ
+
+    #terms[terms=="hidden"] = ['%s%s' % t for t in zip(terms[terms=="hidden"], SP.arange(SP.sum(terms=="hidden")))]
+    #terms[terms=="hiddenSparse"] = ['%s%s' % t for t in zip(terms[terms=="hiddenSparse"], SP.arange(SP.sum(terms=="hiddenSparse")))]
+
+    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'init_factors':init_factors}
+    if not gene_ids is None:
+        gene_ids = SP.array(gene_ids)
+    FA = fscLVM.CSparseFA(components=pi.shape[1], idx_genes = None, gene_ids = gene_ids)   
+    FA.saveInit=True
+    FA.init(**init)  
+
+    return FA   
+
+
+    
 
 def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
             noise='gauss', minGenes=20, do_preTrain=True, nFix=None):
@@ -749,6 +771,8 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
     if noise=='gauss':
         Y-=SP.mean(Y,0)       
 
+
+
     #include hidden variables
     if nHiddenSparse>0:
         piSparse = SP.ones((Y.shape[1],nHiddenSparse))*.01
@@ -756,10 +780,12 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
         for iH in range(piSparse.shape[1]):
             idxOnH = SP.random.choice(idxVar[:100],20, replace=False)
             piSparse[idxOnH,iH] = 0.99
-        pi = SP.hstack([piSparse, pi])
+        pi = SP.hstack([piSparse,pi])
         thiddenSparse = SP.repeat('hiddenSparse',nHiddenSparse)
         termsHiddnSparse = ['%s%s' % t for t in zip(thiddenSparse, SP.arange(nHiddenSparse))]
         terms = SP.hstack([termsHiddnSparse,terms])
+        num_terms += nHiddenSparse
+
 
     thidden = SP.repeat('hidden',nHidden)
     termsHidden = ['%s%s' % t for t in zip(thidden, SP.arange(nHidden))]
@@ -768,21 +794,30 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])
     num_terms += nHidden
 
+
+
 #mean term for non-Gaussian noise models
     if noise!='gauss':
         terms = SP.hstack([ 'bias',terms])
         pi = SP.hstack([SP.ones((Y.shape[1],1))*(1.-1e-10),pi])        
-        num_terms += nHidden
+        num_terms += 1
 
     if do_preTrain==True:   
         Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=nFix)
         pi = pi[:,Ilabel]
         terms = terms[Ilabel]    
 
+
+
+
+
+
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
     if not gene_ids is None:
-        gene_ids = list(gene_ids)
+        gene_ids = SP.array(gene_ids)
     FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids)   
+    FA.saveInit=True
+
     FA.init(**init)  
 
     return FA   

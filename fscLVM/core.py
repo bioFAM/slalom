@@ -101,7 +101,7 @@ class CSparseFA(AExpressionModule):
         """        
         isExpressed = (self.Z.E1>0)*1.
         F = self.Z.E1.copy() 
-        epsK = self.Eps.copy()
+        epsK = self.Eps.E1.copy()
         epsK[self.Eps>1/4.]=1/4.
         Xi = SP.dot(self.S,(self.W.C[:,:,0]*self.W).transpose())
         F[isExpressed==0] = (Xi - (1./(1.+SP.exp(-Xi)))/epsK)[isExpressed==0]
@@ -221,76 +221,8 @@ class CSparseFA(AExpressionModule):
             return self.S.E1[:,idx]
 
 
-    # def plotTerms(self, madFilter=.4):
-    #     """Plot terms and their respective relevance
 
-    #     Args:
-    #         madFilter          (float): Filter factors by this mean absolute deviation to exclude outliers. 
-    #                                     For large datsets this can be set to 0.
-    #     """    
-
-    #     MAD = mad(self.S.E1)
-    #     alpha = (MAD>madFilter)*(1./self.Alpha.E1)                 
-    #     idx_sort = SP.argsort(self.terms)
-    #     Y = alpha[idx_sort]
-    #     X =SP.arange(len(alpha))#[idx_sort]
-    #     plt.plot(X, Y, '.',markersize=10)
-    #     plt.xticks(X, self.terms[idx_sort], size='small', rotation='vertical')    
-    #     plt.ylabel("Relevance score")
-    #     plt.show()
-
-
-
-    # def plotFactors(self, idx1=0, idx2=1,lab=None, cols=None, isCont=True, madFilter=0.4):
-    #     """Scatter plot of 2 factors
-
-    #     Args:
-    #         idx1                    (int): Index of first factor to be plotted
-    #         idx2                    (int): Index of second factor to be plotted
-    #         lab             (vector_like): Vector of labels for each data point
-    #         isCont                 (bool): Boolean variable indicating whether labels should be interpreted as discrete or continuous
-    #         cols            (vector_like): Vector of colors. Should be the same length as unique labels. Default is `None`, 
-    #                                        then the `brewer2mpl` 
-    #         madFilter             (float): Filter factors by this mean absolute deviation to exclude outliers. 
-    #                                         For large datsets this can be set to 0.                                           
-
-    #     """   
-
-    #     MAD = mad(self.S.E1)
-    #     alpha = (MAD>madFilter)*(1/(self.Alpha.E1))
-    #     idxF = SP.argsort(-alpha)    
-    #     X1 = self.S.E1[:,idxF[idx1]]
-    #     X2 = self.S.E1[:,idxF[idx2]]
-         
-        
-    #     if isCont==False:
-    #         uLab = SP.unique(lab)  
-    #         if cols==None:
-    #             try:
-    #                 import brewer2mpl
-    #             except ImportError:
-    #                 print 'Specify colors using the cols argument or install the brewer2mpl module'
-    #             bmap=brewer2mpl.get_map('Paired', 'Qualitative', len(uLab))
-    #             cols = bmap.hex_colors         
-    #         pList=list()
-    #         for i in range(len(X1)):
-    #             pList.append(plt.plot(X1[i], X2[i], '.',color=cols[SP.where(lab[i]==uLab)[0]]))
-    #         plt.xlabel(self.terms[idxF[idx1]])
-    #         plt.ylabel(self.terms[idxF[idx2]])
-    #         lList=list()
-    #         for i in range(len(uLab)):
-    #             lList.append( mlines.Line2D([], [], color=cols[i], marker='.',
-    #                               markersize=7, label=uLab[i], linewidth=0))     
-    #         plt.legend(handles=lList)
-    #     else:
-    #         plt.scatter(X1, X2, c=lab, s=20)
-    #         plt.xlabel(self.terms[idxF[idx1]])
-    #         plt.ylabel(self.terms[idxF[idx2]])
-    #     plt.show()
-
-
-
-    def regressOut(idx,use_latent=False):
+    def regressOut(self,idx,use_latent=False):
         """Regress out unwanted variation
 
         Args:
@@ -321,7 +253,6 @@ class CSparseFA(AExpressionModule):
             tolerance          (float): Tolerance to monitor convergence of reconstruction error
             minIterations        (int): Minimum number of iterations the model should perform.
                                                           
-
         """  
 
         if tolerance is None: tolerance = self.tolerance
@@ -396,10 +327,8 @@ class CSparseFA(AExpressionModule):
             logPi[isOFF_] = (YmeanX.shape[0]/self.nScale)*SP.log(self.Pi[isOFF_,m]/(1-self.Pi[isOFF_,m]))   
 
             isON_ = self.Pi[:,m]>.5        
-#            onF = (SP.sum(isON_)/float(len(isON_)))*YmeanX.shape[0]/self.nScale#((YmeanX.shape[0]/100.)/self.nScale)
-            #((YmeanX.shape[0]/100.)/self.nScale)
+
             if self.onF>1.:
-                #logPi[isON_] = *SP.log(self.Pi[isON_,m]/(1-self.Pi[isON_,m]))
                 logPi[isON_] = self.onF*SP.log(self.Pi[isON_,m]/(1-self.Pi[isON_,m]))
 
         else:
@@ -507,9 +436,9 @@ class CSparseFA(AExpressionModule):
     def getNchanged(self):
         """ Return number of annotations changed by the model (sum of included and exluded genes )
         """
-
-        nChanged = SP.sum((self.Pi>.5)!=(self.W.C[:,:,0]>.5), 0)[(self.nKnown+self.nLatent+self.nLatentSparse):]*1.0
-        nChangedRel = nChanged/SP.sum((self.Pi>.5), 0)[(self.nKnown+self.nLatent+self.nLatentSparse):]
+        i_use = SP.setxor1d(SP.arange(self.Pi.shape[1]), SP.hstack([self.iLatentSparse, self.iLatent]))
+        nChanged = SP.sum((self.Pi>.5)!=(self.W.C[:,:,0]>.5), 0)[i_use]*1.0
+        nChangedRel = nChanged/SP.sum((self.Pi>.5), 0)[i_use]
         return (nChanged, nChangedRel)
 
 
@@ -547,7 +476,9 @@ class CSparseFA(AExpressionModule):
         #AGAussNode is defined in ExpresisonNet
         #expr Y ~ N(\mu= expr, \sigma = 0)
         pattern_hidden = re.compile(unannotated_id+'\d')
-        pattern_hiddenSparse = re.compile(unannotated_id+"*parse*")
+        pattern_hiddenSparse = re.compile(unannotated_id+"\D*parse"+"\d")
+
+        #pdb.set_trace()
 
         Ihidden = SP.array([pattern_hidden.match(term) is not None for term in terms])
         IhiddenSparse = SP.array([pattern_hiddenSparse.match(term) is not None for term in terms])
@@ -594,14 +525,14 @@ class CSparseFA(AExpressionModule):
         #set some attributes that we need frequently for the updates, inculuding 
         #number and idx of hidden and sparse hidden terms
 
-        if init_factors!=None and 'iLatent' in init_factors:
+        if init_factors is not None and 'iLatent' in init_factors:
             self.iLatent = init_factors['iLatent']
             self.nLatent = len(init_factors['iLatent'])
         else:
             self.iLatent = SP.where(Ihidden==True)[0]
             self.nLatent = len(self.iLatent)
 
-        if init_factors!=None and 'iLatentSparse' in init_factors:
+        if init_factors is not None and 'iLatentSparse' in init_factors:
             self.iLatentSparse = init_factors['iLatentSparse']
             self.nLatentSparse= len(init_factors['iLatentSparse'])
         else:
@@ -617,6 +548,7 @@ class CSparseFA(AExpressionModule):
             self.initZ = init_factors['initZ']
         else:            
             self.initZ = Pi.copy()
+            self.initZ[self.initZ<.2] = 0.01
         
         #Pi is likelihood of link for genes x factors
         self.Pi = Pi
@@ -663,21 +595,23 @@ class CSparseFA(AExpressionModule):
                 Zstd -= Zstd.mean(0)
             else:
                 Zstd = self.Z.E1
+                #Zstd -= Zstd.mean(0)
 
             Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.initZ
             self.W.C[:,:,0] = self.initZ
-            self.W.C[:,:,0][self.W.C[:,:,0]<=.1] = .1
-            self.W.C[:,:,0][self.W.C[:,:,0]>=.9] = .9
+            #self.W.C[:,:,0][self.W.C[:,:,0]<=.1] = .1
+            #self.W.C[:,:,0][self.W.C[:,:,0]>=.9] = .9
             self.W.C[:,:,1] = 1.-self.W.C[:,:,0]
             
             for k in range(self.nHidden):
                 k+=self.nKnown
                 if Ion[:,k].sum()>5:
                     #pdb.set_trace()
-                    pca = PCA(n_components=1, iterated_power=2,svd_solver='randomized')
+                    pca = PCA(n_components=1)#, iterated_power=2,svd_solver='randomized')
                     s0 = pca.fit_transform(Zstd[:,Ion[:,k]])
                     self.S.E1[:,k] =(s0[:,0])
                     self.S.E1[:,k] =  self.S.E1[:,k]/self.S.E1[:,k].std()
+
 
                 else:
                     self.S.E1[:,k] = random.randn(self._N,)

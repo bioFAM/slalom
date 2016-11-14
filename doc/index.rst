@@ -42,12 +42,20 @@ All steps required to run f-scLVM are illustrated in a jupyter notebook that can
 
 The factorial single-cell latent variable model (f-scLVM)
 ---------------------------------------------------------
-f-scLVM is based on a variant of matrix factorization, decomposing the observed gene matrix into a sum of sum of contributions from  A annotated factors, whose inference is guided by pathway gene sets, and H additional unannotated factors:
+A detailed statistical description of the f-scLVM model can be found in teh accompanyin publicaiton [1]. Here, a brief summary is given. f-scLVM is based on a variant of matrix factorization, decomposing the observed gene matrix into a sum of sum of contributions from  A annotated factors, whose inference is guided by pathway gene sets, and H additional unannotated factors:
 
 .. math::
 
-    \mathbf{Y} = \underbrace{\sum_{a=1}^{A} \mathbf{p}_a \mathbf{R}_a^{\T}}_{\text{annotated factors}} + \underbrace{\sum_{h=1}^{H} \mathbf{s}_h \mathbf{Q}_h^{\T}}_{\text{unannotated factors}} + \underbrace{\mathbf{psi}}_{\text{residuals}}.
+    \mathbf{Y} = \underbrace{\sum_{a=1}^{A} \mathbf{p}_a \mathbf{R}_a^{T}}_{\text{annotated factors}} + \underbrace{\sum_{h=1}^{H} \mathbf{s}_h \mathbf{Q}_h^{T}}_{\text{unannotated factors}} + \underbrace{\mathbf{\psi}}_{\text{residuals}}.
+    
+Here, the vectors :math:`\mathbf{p}_a` and :math:`\mathbf{s}_h` are factor states for annotated and unannotated factors and :math:`\mathbf{R}_a` and :math:`\mathbf{Q}_h` are the corresponding regulatory weights of a given factor on all genes. The matrix :math:`\mathbf{psi}` denotes residual noise.
+For the statistical derivation in the accompanying publicationa and the implementation,  we express this mode using matrix notation, collapsing the factors into a factor activation matrix  :math:`\mathbf{X} = \mathbf{r}_1,\dots,\mathbf{r}_A,\mathbf{s}_1,\dots,\mathbf{s}_H]` (with the comma denoting concatenation of columns), where each factor is enumerated using an indicator :math:`k = 1 \dots K`, and K denotes the total number of fitted factors :math:`K =  A + H`. The analogous matrix representation is used for weights :math:`\mathbf{W}`, resulting in
 
+.. math::
+
+    \mathbf{Y} = \mathbf{X}\mathbf{W}^T +\mathbf{\psi}
+    
+ We employ two levels of regularization on the parts of the weight matrix :math:`\mathbf{W}` corresponding to annotated factors. First, gene sets are used to guide a spike-and-slab prior on the rows of :math:`\mathbf{W}` thereby confining the inferred weights to the set of genes annotated in the pathway database. To this end :math:`\mathbf{W}` is modelled as elementwise product of a Bernoulli random variable :math:`\mathbf{Z}`, inidicating whether a gene is active for a given factor and a Gaussian random variable :math:`\widetilde{\mathbf{W}}`, quantifying the corresponding effect size (for details see [1]). A second level of regularization is then used to achieve sparseness on the level of factors, allowing the model to deactivate factors that are not needed to explain variation in the data; this is achieved using an automatic relevance determination (ARD) prior (i.e. factor-specific Gamma prior on the precision of the weights). The inverse of this ARD prior (:math:`1/\alpha_k`) can be interpreted as a measure of the regulatory impact of  factor :math:`k` and corresponds to the expected variance explained by this factor, for the subset of genes with a regulatory effect. It is therefore also referred to as relevance parameter.  The fscLVM software implements an efficent deterministic approximate Bayesian inference scheme based on variational methods, allowing for the inference of :math:`\mathbf{X}`, :math:`\mathbf{Z}`, :math:`\widetilde{\mathbf{W}}`, :math:`\mathbf{\alpha}`, :math:`\mathbf{\psi}` and other parameters.  
 
 Loading data and model initialisation
 -------------------------------------

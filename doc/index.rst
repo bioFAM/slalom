@@ -40,6 +40,15 @@ Tutorial
 All steps required to run f-scLVM are illustrated in a jupyter notebook that can be viewed `interactively <http://nbviewer.jupyter.org/github/pmbio/f-scLVM/blob/master/ipynb/f-scLVM.ipynb>`_. 
 
 
+The factorial single-cell latent variable model (f-scLVM)
+---------------------------------------------------------
+f-scLVM is based on a variant of matrix factorization, decomposing the observed gene matrix into a sum of sum of contributions from  A annotated factors, whose inference is guided by pathway gene sets, and H additional unannotated factors:
+
+.. math::
+
+    \mathbf{Y} = \underbrace{\sum_{a=1}^{A} \mathbf{p}_a \mathbf{R}_a^{\T}}_{\text{annotated factors}} + \underbrace{\sum_{h=1}^{H} \mathbf{s}_h \mathbf{Q}_h^{\T}}_{\text{unannotated factors}} + \underbrace{\mathbf{psi}}_{\text{residuals}}.
+
+
 Loading data and model initialisation
 -------------------------------------
 

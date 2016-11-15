@@ -21,7 +21,7 @@ f-scLVM requires Python 2.7 or newer with
   - scipy, h5py, numpy, matplotlib, scikit-learn, re
   
 f-scLVM can be installed via pip with `pip install fscLVM`.
-For best results, we recommend the ANACONDA python distribution.
+For best results, we recommend the [ANACONDA](https://anaconda.org) python distribution.
 
 
 ##How to use f-scLVM?

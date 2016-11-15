@@ -15,12 +15,12 @@ def setup_package():
 
    setup_requires = ['']
    install_requires = [ 'numpy>=1.10', 'scipy>=0.17','h5py>=2.5', "pandas>=0.15",
-                       'matplotlib>=1.5', 'scikit-learn>=0.17.1', 'brewer2mpl>=1.3']
+                       'matplotlib>=1.5', 'scikit-learn>=0.18.1', 'brewer2mpl>=1.3']
    tests_require = install_requires
 
    metadata = dict(
        name='fscLVM',
-       version='1.0.0.dev7',
+       version='1.0.0.dev8',
        maintainer="f-scLVM Developers",
        maintainer_email="fbuettner.phys@gmail.com",
        license="Apache 2.0",

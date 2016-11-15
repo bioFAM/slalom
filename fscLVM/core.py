@@ -19,6 +19,7 @@
 from .bayesnet.vbfa import *
 import scipy as SP
 from sklearn import metrics
+from sklearn.linear_model import LinearRegression
 import re
 from sklearn.decomposition import PCA
 
@@ -222,25 +223,47 @@ class CSparseFA(AExpressionModule):
 
 
 
-    def regressOut(self,idx,use_latent=False):
+    def regressOut(self,idx=None, terms=None,use_latent=False, use_lm = False, Yraw = None):
         """Regress out unwanted variation
 
         Args:
             idx          (vector_like): Indices of factors to be regressed out
-            use_latent     (bool): Boolean varoable indicating whether to regress out 
-                                    the unwanted variation on the low-dimensional latent 
-                                    space or the high-dimensional gene expression space.                                                           
+            use_latent     (bool):      Boolean varoable indicating whether to regress out 
+                                        the unwanted variation on the low-dimensional latent 
+                                        space or the high-dimensional gene expression space.  
+            use_lm               (bool):   Regress out the factors by fitting a linear model for each gene
+            Yraw            (array_like): Optionally a gene expression array can be passed from which the facotrs are regressed out                                                         
         Returns:
             A matrix containing the corrected expression values.
         """      
 
-        idx = SP.array(idx)  
-        isOn =  (self.W.C[:,:,0]>.5)*1.0    
-        if use_latent==False: 
-            Ycorr = self.Z.E1-SP.dot(self.S.E1[:,idx], (isOn[:,idx]*self.W.E1[:,idx]).T)
+        #if (idx is None) and (terms is None):
+        #    raise Exception('Provide either indices or terms to regress out')  
+
+        if terms is None:
+            idx = SP.array(idx)  
         else:
-            idx_use = SP.setxor1d(SP.arange(self.S.E1.shape[1]),idx)
-            Ycorr = SP.dot(self.S.E1[:,idx_use], (isOn[:,idx_use]*self.W.E1[:,idx_use]).T)    
+            idx = self.getTermIndex(terms)
+          
+        if use_lm==False and (Yraw is None):  
+            isOn =  (self.W.C[:,:,0]>.5)*1.0 
+            if use_latent==False: 
+                Ycorr = self.Z.E1-SP.dot(self.S.E1[:,idx], (isOn[:,idx]*self.W.E1[:,idx]).T)
+            else:
+                idx_use = SP.setxor1d(SP.arange(self.S.E1.shape[1]),idx)
+                Ycorr = SP.dot(self.S.E1[:,idx_use], (isOn[:,idx_use]*self.W.E1[:,idx_use]).T)    
+        else:
+            if Yraw is None:
+                Y = self.Z.E1.shape
+            else:
+                Y = Yraw.copy()
+            Ycorr = SP.zeros(Y.shape)
+            X = self.getX(terms=terms)
+            for ig in SP.arange(Y.shape[1]):
+                lm = LinearRegression()
+                lm.fit(X, Y[:,ig])
+                Ycorr[:,ig] = Y-lm.predict(X)
+
         return Ycorr
              
 
@@ -455,7 +478,7 @@ class CSparseFA(AExpressionModule):
 
 
 
-    def __init__(self,init_data=None,E1=None,E2=None,**parameters):
+    def __init__(self,init_data=None,**parameters):
         """create the object"""
         #handle setting of parameters via Bayesnet constructor
         ABayesNet.__init__(self,parameters=parameters)
@@ -466,8 +489,7 @@ class CSparseFA(AExpressionModule):
         if('Eps' not in self.priors):   self.priors['Eps']={'priors': [1E-3,1E-3]}
         
         self.dataNode=None
-        if init_data is None and E1 is not None:
-            init_data = CGauss(E1=E1,E2=E2)
+
         if init_data is not None:
             self.init(init_data)
 
@@ -599,15 +621,15 @@ class CSparseFA(AExpressionModule):
 
             Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.initZ
             self.W.C[:,:,0] = self.initZ
-            #self.W.C[:,:,0][self.W.C[:,:,0]<=.1] = .1
-            #self.W.C[:,:,0][self.W.C[:,:,0]>=.9] = .9
+            self.W.C[:,:,0][self.W.C[:,:,0]<=.1] = .1
+            self.W.C[:,:,0][self.W.C[:,:,0]>=.9] = .9
             self.W.C[:,:,1] = 1.-self.W.C[:,:,0]
             
             for k in range(self.nHidden):
                 k+=self.nKnown
                 if Ion[:,k].sum()>5:
                     #pdb.set_trace()
-                    pca = PCA(n_components=1)#, iterated_power=2,svd_solver='randomized')
+                    pca = PCA(n_components=1, iterated_power=2,svd_solver='randomized')
                     s0 = pca.fit_transform(Zstd[:,Ion[:,k]])
                     self.S.E1[:,k] =(s0[:,0])
                     self.S.E1[:,k] =  self.S.E1[:,k]/self.S.E1[:,k].std()

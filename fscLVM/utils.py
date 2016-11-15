@@ -183,7 +183,7 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
     if FA!=None:
         S = FA.getX()
         alpha = FA.getRelevance()
-        terms = FA.getTerms()
+        terms = SP.array(FA.getTerms())        
     else:
         assert S!=None
         assert alpha!=None
@@ -210,7 +210,6 @@ def plotLoadings(FA, term, n_genes = 10):
         n_genes                                 (int): Number of loadings to be shown
 
     """
-
               
     Zchanged = FA.getZchanged([term])[:,0]
     W        = FA.getW([term])[:,0]
@@ -483,8 +482,8 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     K = pi.shape[1]
 
     #data for sparseFA instance    
-    pi[pi>.8] =1-1e-100#0.9999
-    pi[pi<.2] =1e-100
+    pi[pi>.8] =0.99#1-1e-100#0.9999
+    pi[pi<.2] =1e-8
     
 
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
@@ -503,7 +502,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
         nFix = FA0.nKnown+FA0.nLatent
                         
 #Fit PCA        
-    pca = PCA(n_components=1)
+    pca = PCA(n_components=1,svd_solver='full')
     pca.fit(FA0.Z.E1)
     X = pca.transform(FA0.Z.E1)
 
@@ -526,7 +525,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
     FA = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
     FA.shuffle=True
-    FA.nScale = 30
+    FA.nScale = 100
     FA.init(**init) 
     for j in range(50):
         FA.update()      
@@ -538,7 +537,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
     FArev = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
     FArev.shuffle=True
-    FArev.nScale = 30
+    FArev.nScale = 100
     FArev.init(**init) 
 
     #FArev.iterate(forceIterations=True, nIterations=nIterations)
@@ -582,7 +581,7 @@ def load_hdf5(dFile, anno='MSigDB'):
     return data
 
 
-def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=','):  
+def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=','):  
     """Load input file for f-scLVM from txt files.
 
     Loads an txt files and extracts all the inputs required by f-scLVM 
@@ -624,6 +623,7 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
     terms = []
     annotated_genes = []
     for anno in content:
+        pdb.set_trace()
         terms.append(anno[0])
         if annoDB=='msigdb':
             anno_lower = [gene.title() for gene in anno[2:]] 
@@ -663,6 +663,107 @@ def load_txt(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimite
     data_out['lab'] = df.columns
     return data_out
 
+def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimiter=','):  
+    """Load input file for f-scLVM from txt files.
+
+    Loads an txt files and extracts all the inputs required by f-scLVM 
+
+    Args:
+        dataFile (str): Strong containing the file name of the text file with the expression levels
+        dataFile_delimiter (str): delimiter for reading the data_file. Defaults to ','. 
+        annoFiles (str, list): Either string containing the file name of the txt file with the gene set annotations or a list containing several anotation files. Each line in 
+                               in an annotattion file correspondsto one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
+        annoDBs (str, list)      : database file (MsigDB/REACTOME). If several annotation files are provided this hast to be a list of the same length.                        
+        niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
+        dataFile_delimiter (str): Delimiter used in dataFile; defaults to ','.
+
+
+    Returns:
+        An dictionary containing all the inputs required by f-scLVM.
+    """    
+    if type(annoFiles)==dtype('str'):
+        annoFiles = [annoFiles]
+
+    if type(annoDBs)==dtype('str'):
+        annoDBs = [annoDBs]    
+
+    if type(niceTerms)==dtype('bool'):
+        niceTerms = [niceTerms]                
+
+    if len(annoFiles)>1:
+        if len(niceTerms)==1:
+            niceTerms = rep(niceTerms,len(annoFiles))
+
+
+    if not os.path.exists(dataFile):
+        raise Exception('data file file (%s) not found' % dataFile)
+
+    if not len(annoDBs)==len(annoFiles):
+        raise Exception('annoFiles and annoDBs should have the same length')        
+
+
+ 
+
+    #read data file
+    df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
+    
+    Ilist = list()
+    termsList = list()
+    i_file = 0
+    for annoFile in annoFiles:
+        if not os.path.exists(annoFile):
+            raise Exception('annotation file (%s) not found' % annoFile)        
+
+        annoDB = annoDBs[i_file].lower()
+        if not annoDB in ['msigdb','reactome', 'custom']:
+            raise Exception('database (db) needs to be either msigdb, reactome or custom')
+
+
+        with open(annoFile) as f:
+            content = [x.strip('\n') for x in f.readlines()]
+       
+        content = [anno.split() for anno in content]
+
+        terms = []
+        annotated_genes = []
+        for anno in content:
+            terms.append(anno[0])
+            if annoDB=='msigdb':
+                anno_lower = [gene.title() for gene in anno[2:]] 
+            else:
+                anno_lower = [gene.title() for gene in anno[1:]] 
+
+            annotated_genes.append(anno_lower)         
+        I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=[ind.title() for ind in df.index], columns=terms)
+
+        for i_anno in range(len(terms)):      
+            anno_expressed = list()
+            for g in annotated_genes[i_anno]:
+                if g in I.index:
+                    anno_expressed.append(g)    
+            I.loc[anno_expressed,terms[i_anno]]=1.   
+
+        if niceTerms[i_file]==True:
+            if annoDB=='msigdb':
+                substring='HALLMARK_'
+            elif annoDB=='reactome':
+                substring='REACTOME_'
+            else:
+                substring=' '        
+
+            terms = [term[term.find(substring)+len(substring):30] for term in terms]
+            terms = [term.capitalize().replace('_',' ') for term in terms]
+        Ilist.append(I.values)
+        termsList.append(terms)
+        i_file+=1
+
+    data_out = {}
+    data_out['terms'] = SP.hstack(termsList)
+    data_out['Y'] = df.values.T
+    data_out['I'] = SP.hstack(Ilist)
+    data_out['genes'] = list(df.index)
+    data_out['lab'] = df.columns
+    return data_out
 
 
 def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
@@ -762,7 +863,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
         Y = Y[:,idx_genes]
         pi = pi[idx_genes,:]
         if not (gene_ids is None):
-            gene_ids = gene_ids[idx_genes]
+            gene_ids = SP.array(gene_ids)[idx_genes]
     else:
         idx_genes = SP.arange(Y.shape[1])        
 

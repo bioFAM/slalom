@@ -32,7 +32,7 @@ For an illustration of how f-scLVM can be applied to mESC data considered in Bue
 Documentation of the code can be found [here](http://f-sclvm.readthedocs.io).
 ##References:
 
-[1] Buettner, F.,Pratanwanich, N., Marioni, J., Stegle, O. Scalable latent-factor models applied to single-cell RNA-seq data separate biological drivers from confounding effects. Submitted 
+[1] Buettner, F.,Pratanwanich, N., Marioni, J., Stegle, O. Scalable latent-factor models applied to single-cell RNA-seq data separate biological drivers from confounding effects. [Submitted](http://biorxiv.org/content/early/2016/11/15/087775).
 
 
 

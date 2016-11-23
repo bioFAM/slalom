@@ -100,12 +100,17 @@ class CSparseFA(AExpressionModule):
         """Get imputed expression values
 
         """        
-        isExpressed = (self.Z.E1>0)*1.
-        F = self.Z.E1.copy() 
-        epsK = self.Eps.E1.copy()
-        epsK[self.Eps>1/4.]=1/4.
-        Xi = SP.dot(self.S,(self.W.C[:,:,0]*self.W).transpose())
-        F[isExpressed==0] = (Xi - (1./(1.+SP.exp(-Xi)))/epsK)[isExpressed==0]
+        if self.nois=='gauss':
+            print("Returning reconstructed gene expression Y = Q(X)*Q(W)^TQ(Z)^T")
+            F = SP.dot(self.S.E1,(self.W.E1*self.W.C[:,:,0]).T)
+        else:
+            print("Returning imputed expression values")
+            isExpressed = (self.Z.E1>0)*1.
+            F = self.Z.E1.copy() 
+            epsK = self.Eps.E1.copy()
+            epsK[self.Eps>1/4.]=1/4.
+            Xi = SP.dot(self.S.E1,(self.W.C[:,:,0]*self.W.E1).transpose())
+            F[isExpressed==0] = (Xi - (1./(1.+SP.exp(-Xi)))/epsK)[isExpressed==0]
         return F        
 
     def getRelevance(self):
@@ -258,11 +263,16 @@ class CSparseFA(AExpressionModule):
             else:
                 Y = Yraw.copy()
             Ycorr = SP.zeros(Y.shape)
-            X = self.getX(terms=terms)
+
+            if terms is None:
+                X = self.S.E1[:,idx]
+            else:
+                X = self.getX(terms=terms)
+
             for ig in SP.arange(Y.shape[1]):
                 lm = LinearRegression()
                 lm.fit(X, Y[:,ig])
-                Ycorr[:,ig] = Y-lm.predict(X)
+                Ycorr[:,ig] = Y[:,ig]-lm.predict(X)
 
         return Ycorr
              
@@ -471,9 +481,9 @@ class CSparseFA(AExpressionModule):
         """
         (nChanged, nChangedRel) = self.getNchanged()
         if nChangedRel.max()<1:
-            print('Maximally ', nChangedRel.max()*100.,'% Genes per factor changed.')
+            print('Maximally ', '%d%% Genes per factor changed.' % nChangedRel.max()*100.)
         else:
-            print('Maximally ', nChangedRel.max()*100.,'% Genes per factor changed. Re-run with sparse annotated factors.')
+            print('Maximally ', '%d%% Genes per factor changed. Re-run with sparse annotated factors.' % nChangedRel.max()*100.)
 
 
 

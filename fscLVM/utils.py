@@ -61,9 +61,9 @@ def saveFA(FA, out_name=None, saveF=False):
     out_file.create_dataset(name='Z',data=FA.getZ())
     out_file.create_dataset(name='I',data=FA.getAnnotations())
     out_file.create_dataset(name='terms',data=SP.array(FA.getTerms(),dtype='|S30'))
-    out_file.create_dataset(name='idx_genes',data=FA.idx_genes)
+    out_file.create_dataset(name='idx_genes',data=FA.idx_genes.astype('int'))
     if not FA.gene_ids is None: 
-        out_file.create_dataset(name='gene_ids',data=FA.gene_ids)
+        out_file.create_dataset(name='gene_ids',data=FA.gene_ids,dtype='|S30')
     if saveF==True:
         out_file.create_dataset(name='F',data=FA.getF())
     out_file.close()    
@@ -581,7 +581,7 @@ def load_hdf5(dFile, anno='MSigDB'):
     return data
 
 
-def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=','):  
+def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=',', verbose=True):  
     """Load input file for f-scLVM from txt files.
 
     Loads an txt files and extracts all the inputs required by f-scLVM 
@@ -594,6 +594,7 @@ def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimit
         annoDB (str)      : database file (MsigDB/REACTOME)                        
         niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
         dataFile_delimiter (str): Delimiter used in dataFile; defaults to ','.
+        verbose     (bool): Print progresss?
 
 
     Returns:
@@ -634,6 +635,8 @@ def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimit
 
     #read data file
     df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
+    if verbose==True:
+        print('Data file loaded'.)
     
     I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=[ind.title() for ind in df.index], columns=terms)
 
@@ -663,7 +666,7 @@ def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimit
     data_out['lab'] = df.columns
     return data_out
 
-def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimiter=','):  
+def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimiter=',', verbose=True):  
     """Load input file for f-scLVM from txt files.
 
     Loads an txt files and extracts all the inputs required by f-scLVM 
@@ -706,7 +709,8 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
 
     #read data file
     df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
-    
+    if verbose==True:
+        print('Data file loaded'.)    
     Ilist = list()
     termsList = list()
     i_file = 0
@@ -741,7 +745,9 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
             for g in annotated_genes[i_anno]:
                 if g in I.index:
                     anno_expressed.append(g)    
-            I.loc[anno_expressed,terms[i_anno]]=1.   
+            I.loc[anno_expressed,terms[i_anno]]=1.
+            if verbose==True:
+                print('%i terms out of %i terms loaded for current annotation file' % (i_anno, len(terms)))
 
         if niceTerms[i_file]==True:
             if annoDB=='msigdb':
@@ -756,6 +762,8 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
         Ilist.append(I.values)
         termsList.append(terms)
         i_file+=1
+        if verbose==True:
+            print('Processed annotation file',anno)  
 
     data_out = {}
     data_out['terms'] = SP.hstack(termsList)

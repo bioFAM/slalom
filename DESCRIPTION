@@ -1,0 +1,29 @@
+Package: slalom
+Type: Package
+Title: Factorial Latent Variable Modeling of Single-Cell RNA-Seq Data
+Version: 0.1.1
+Date: 2016-11-25
+Author: Florian Buettner
+Maintainer: Florian Buettner <buettner@ebi.ac.uk>
+Authors@R: c(person("Florian", "Buettner", role=c("aut", "cre"),
+        email="buettner@ebi.ac.uk"), person("Davis", "McCarthy",
+        role=c("aut"), email="davis@ebi.ac.uk"), person("Naruemon",
+        "Pratanwanich", role=c("aut"),
+        email="np394@ebi.ac.uk"), person("Oliver", "Stegle", role = c("aut"), 
+        email="stegle@ebi.ac.uk"))
+Description: slalom is a scalable modelling framework for single-cell RNA-seq 
+        data that uses gene set annotations to dissect single-cell transcriptome
+        heterogeneity, thereby allowing to identify biological drivers of 
+        cell-to-cell variability and model confounding factors.
+Depends: R (>= 3.3)
+Imports: Rcpp (>= 0.12.8), scater
+Suggests: knitr, testthat
+LinkingTo: Rcpp
+License: GPL (>= 2)
+VignetteBuilder: knitr
+LazyData: true
+Encoding: UTF-8
+biocViews: SingleCell, RNASeq, Normalization,
+        Visualization, DimensionReduction, Transcriptomics,
+        GeneExpression, Sequencing, Software
+RoxygenNote: 5.0.1

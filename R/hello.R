@@ -27,4 +27,3 @@ hello <- function(txt = "world") {
     cat(out)
     out
 }
-

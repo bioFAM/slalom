@@ -16,7 +16,7 @@ Description: slalom is a scalable modelling framework for single-cell RNA-seq
         heterogeneity, thereby allowing to identify biological drivers of 
         cell-to-cell variability and model confounding factors.
 Depends: R (>= 3.3)
-Imports: Rcpp (>= 0.12.8), scater
+Imports: Rcpp (>= 0.12.8), scater, GSEABase, methods, Biobase
 Suggests: knitr, testthat
 LinkingTo: Rcpp
 License: GPL (>= 2)

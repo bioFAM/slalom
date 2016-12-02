@@ -20,19 +20,23 @@
 #'    cells.}
 #'    \item{\code{G}:}{Scalar of class \code{"numeric"}, indicating number of
 #'    genes.}
-#'    \item{\code{G}:}{Scalar of class \code{"numeric"}, indicating number of
-#'    genes.}
-#'    \item{\code{nScale}:}{Scalar of class \code{"numeric"}, relative number of cells to which the observed annotation data (gene sets) are scaled.}
+#'    \item{\code{nScale}:}{Scalar of class \code{"numeric"}, relative number of
+#'     cells to which the observed annotation data (gene sets) are scaled.}
+#'    \item{\code{nHidden}:}{Scalar of class \code{"numeric"}, number of hidden
+#'    factors to model.}
 #'    \item{\code{X}:}{\code{"list"} of values and parameters for factor states.}
 #'    \item{\code{W}:}{\code{"list"} of values and parameters for factor weights.}
-#'    \item{\code{alpha}:}{\code{"list"} of values and parameters for factor precisions.}
-#'    \item{\code{epsilon}:}{\code{"list"} of values and parameters for residual precisions.}
-#'    \item{\code{pi}:}{\code{"matrix"} of size G x K with each entry being the prior
-#'     probability for a gene g being active for factor k.}
+#'    \item{\code{alpha}:}{\code{"list"} of values and parameters for factor
+#'    precisions.}
+#'    \item{\code{epsilon}:}{\code{"list"} of values and parameters for residual
+#'    precisions.}
+#'    \item{\code{pi}:}{\code{"matrix"} of size G x K with each entry being the
+#'    prior probability for a gene g being active for factor k.}
 #'    \item{\code{Y}:}{\code{"matrix"} of size N x G with each entry being the
 #'    observed expression value (normalized, log2-scale) for gene g in cell n.}
-#'    \item{\code{pseudo_Y}:}{\code{"matrix"} of size N x G with each entry being the
-#'    pseudoexpression value (normalized, log2-scale) for gene g in cell n.}
+#'    \item{\code{pseudo_Y}:}{\code{"matrix"} of size N x G with each entry
+#'    being the pseudoexpression value (normalized, log2-scale) for gene g in
+#'    cell n.}
 #'    \item{\code{I}:}{\code{"matrix"} of size G x K of observed annotation data
 #'     with each entry being the indicator that gene g is annotated to factor k.}
 #'    \item{\code{iUnannotatedDense}:}{\code{"logical"} vector giving indices for
@@ -54,6 +58,7 @@ setClass("SlalomModel",
                    N = "numeric",
                    G = "numeric",
                    nScale = "numeric",
+                   nHidden = "numeric",
                    X = "list",
                    W = "list",
                    alpha = "list",

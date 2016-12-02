@@ -9,7 +9,7 @@
 #' @param object \code{"SCESet"} object N x G expression data matrix (cells x genes)
 #' @param genesets a \code{"GeneSetCollection"} object containing annotated
 #' gene sets
-#' @param n_param number of hidden factors to fit in the model (2-5 recommended)
+#' @param n_hidden number of hidden factors to fit in the model (2-5 recommended)
 #' @param prune_genes logical, should genes that are not annotated to any gene
 #' sets be filtered out?
 #' @param min_genes scalar, minimum number of genes required in order to retain
@@ -100,5 +100,54 @@ setValidity("SlalomModel", function(object) {
     msg <- NULL
     valid <- TRUE
 
+    if ( any(is.na(object@Y)) ) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Expression matrix Y cannot contain NA values")
+    }
+    if ( any(is.na(object@I)) ) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Matrix I of observed gene set annotations cannot contain NA values")
+    }
+    if ( (ncol(object@Y) != object@G)) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Number of genes in expression matrix Y must match object@G")
+    }
+    if ( (nrow(object@Y) != object@N)) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Number of cells in expression matrix Y must match object@N")
+    }
+    if ( (ncol(object@I) != object@K)) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Number of factors in matrix I must match object@K")
+    }
+    if ( (length(object@termNames) != object@K)) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Number of factors termNames must match object@K")
+    }
+    if ( (length(object@geneNames) != object@G)) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Number of geneNames must match object@G")
+    }
+    if ( (length(object@cellNames) != object@N)) {
+        valid <- FALSE
+        msg <- c(msg,
+                 "Number of cellNames must match object@N")
+    }
+
+
     if (valid) TRUE else msg
 })
+
+
+
+
+
+
+

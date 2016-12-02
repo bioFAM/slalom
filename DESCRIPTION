@@ -1,8 +1,8 @@
 Package: slalom
 Type: Package
 Title: Factorial Latent Variable Modeling of Single-Cell RNA-Seq Data
-Version: 0.1.1
-Date: 2016-11-25
+Version: 0.1.2
+Date: 2016-12-02
 Author: Florian Buettner
 Maintainer: Florian Buettner <buettner@ebi.ac.uk>
 Authors@R: c(person("Florian", "Buettner", role=c("aut", "cre"),

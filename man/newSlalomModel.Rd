@@ -13,13 +13,13 @@ newSlalomModel(object, genesets, n_hidden = 5, prune_genes = TRUE,
 \item{genesets}{a \code{"GeneSetCollection"} object containing annotated
 gene sets}
 
+\item{n_hidden}{number of hidden factors to fit in the model (2-5 recommended)}
+
 \item{prune_genes}{logical, should genes that are not annotated to any gene
 sets be filtered out?}
 
 \item{min_genes}{scalar, minimum number of genes required in order to retain
 a gene set for analysis}
-
-\item{n_param}{number of hidden factors to fit in the model (2-5 recommended)}
 }
 \value{
 a new SlalomModel object

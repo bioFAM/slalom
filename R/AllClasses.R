@@ -74,3 +74,4 @@ setClass("SlalomModel",
                    cellNames = "character")
 )
 
+

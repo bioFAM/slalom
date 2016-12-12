@@ -14,9 +14,9 @@
 // //
 //
 // //' @title
-// //' Initialise a Slalom model
+// //' Train a Slalom model
 // //' @description
-// //' Initialise a Slalom model by providing the necessary data objects.
+// //' Train a Slalom model by providing the necessary data objects.
 // //'
 // //' @param Y_init matrix of expression values
 // //' @param pi_init G x K matrix with each entry being the prior
@@ -33,7 +33,7 @@
 // //' @importFrom Rcpp evalCpp
 // //' @export
 // // [[Rcpp::export]]
-// Slalom newSlalom(
+// Slalom trainSlalom(
 //     arma::mat Y_init,
 //     arma::mat pi_init,
 //     arma::mat X_init,
@@ -43,6 +43,7 @@
 //     ) {
 //     Slalom sla = Slalom(Y_init, pi_init, X_init, W_init, prior_alpha,
 //                         prior_epsilon);
+//
 //     return sla;
 // }
 //

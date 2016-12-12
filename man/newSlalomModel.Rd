@@ -5,7 +5,7 @@
 \title{Create a new SlalomModel object.}
 \usage{
 newSlalomModel(object, genesets, n_hidden = 5, prune_genes = TRUE,
-  min_genes = 15)
+  min_genes = 15, design = NULL)
 }
 \arguments{
 \item{object}{\code{"SCESet"} object N x G expression data matrix (cells x genes)}
@@ -20,6 +20,9 @@ sets be filtered out?}
 
 \item{min_genes}{scalar, minimum number of genes required in order to retain
 a gene set for analysis}
+
+\item{design}{numeric design matrix providing values for covariates to fit in
+the model (rows represent cells)}
 }
 \value{
 a new SlalomModel object
@@ -38,5 +41,12 @@ gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
 genesets <- GSEABase::getGmt(gmtfile)
 data("mesc")
 model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+
+exprsfile <- system.file("extdata", "mesc.csv", package = "slalom")
+mesc_mat <- as.matrix(read.csv(exprsfile))
+sce <- scater::newSCESet(exprsData = mesc_mat, logExprsOffset = 1,
+                 lowerDetectionLimit = 0)
+# model2 <- newSlalomModel(mesc_mat, genesets, n_hidden = 5, min_genes = 10)
+
 }
 

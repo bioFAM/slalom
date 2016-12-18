@@ -3,18 +3,18 @@
 \docType{methods}
 \name{init}
 \alias{init}
-\alias{init,SlalomModel-method}
+\alias{init,Rcpp_SlalomModel-method}
 \title{Initialize a SlalomModel object}
 \usage{
 init(object, ...)
 
-\S4method{init}{SlalomModel}(object, alpha_priors = NULL,
-  epsilon_priors = NULL, noise = "gauss")
+\S4method{init}{Rcpp_SlalomModel}(object, alpha_priors = NULL,
+  epsilon_priors = NULL, noise_model = "gauss")
 }
 \arguments{
-\item{object}{a \code{SlalomModel} object}
+\item{object}{a \code{Rcpp_SlalomModel} object}
 
-\item{...}{generic arguments passed to}
+\item{...}{generic arguments passed to \code{Rcpp_SlalomModel} method}
 
 \item{alpha_priors}{numeric(2) giving alpha and beta hyperparameters for a
 gamma prior distribution for alpha parameters (precision of factor weights)}

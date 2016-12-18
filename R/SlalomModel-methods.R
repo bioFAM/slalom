@@ -1,4 +1,4 @@
-# Methods for the SlalomModel class
+# Methods for the (Rcpp)SlalomModel class
 
 #' Create a new SlalomModel object.
 #'
@@ -25,10 +25,15 @@
 #'
 #' @import GSEABase
 #' @import scater
+#' @import Rcpp
+#' @import RcppArmadillo
 #' @importFrom Biobase exprs
 #' @importFrom methods new
 #' @importFrom methods validObject
+#' @importFrom Rcpp evalCpp
+#' @useDynLib slalom
 #' @export
+#'
 #' @examples
 #' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
 #' genesets <- GSEABase::getGmt(gmtfile)
@@ -72,32 +77,57 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
     ## create new SlalomModel object for output
     ## set some attributes that we need frequently for the updates, inculuding
     ## number and idx of hidden (unannotated) terms
-    out <- new("SlalomModel",
-        K = n_known + ncol(I),
-        N = nrow(Y),
-        G = nrow(I),
-        nAnnotated = ncol(I) - n_hidden,
-        nHidden = n_hidden,
-        nKnown = n_known,
-        nScale = 100,
-        Y = Y[, retained_genes],
-        pi = I * 1L,
-        termNames = colnames(I),
-        geneNames = retained_genes,
-        cellNames = scater::cellNames(object),
-        iUnannotatedDense = seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
+    slalom_module <- Rcpp::Module("SlalomModel", PACKAGE = "slalom")
+    out <- new(slalom_module$SlalomModel,
+               Y_init = Y[, retained_genes],
+               pi_init = I * 1L,
+               X_init = matrix(0, nrow = nrow(Y), ncol(I)),
+               W_init = matrix(0, nrow = ncol(Y), ncol(I)),
+               prior_alpha = c(1e-03, 1e-03),
+               prior_epsilon = c(1e-03, 1e-03)
     )
+    ## add more data to the object
+    out$iUnannotatedDense <- seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
+    out$nAnnotated <- ncol(I) - n_hidden
+    out$nHidden <- n_hidden
+    out$nKnown <- n_known
+    ## add design matrix as known factors if supplied
     if (!is.null(design)) {
-        if (nrow(design) != out@N)
+        if (nrow(design) != out$N)
             stop("Number of rows of design does not match number of cells.")
-        else
-            out@Known <- design
+        else {
+            out$K <- n_known + ncol(I)
+            out$Known <- design
+        }
     }
+
     ## Check validity of object
-    validObject(out)
+    #validObject(out)
     out
 }
 
+
+# out <- new("SlalomModel",
+#     K = n_known + ncol(I),
+#     N = nrow(Y),
+#     G = nrow(I),
+#     nAnnotated = ncol(I) - n_hidden,
+#     nHidden = n_hidden,
+#     nKnown = n_known,
+#     nScale = 100,
+#     Y = Y[, retained_genes],
+#     pi = I * 1L,
+#     termNames = colnames(I),
+#     geneNames = retained_genes,
+#     cellNames = scater::cellNames(object),
+#     iUnannotatedDense = seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
+# )
+# if (!is.null(design)) {
+#     if (nrow(design) != out@N)
+#         stop("Number of rows of design does not match number of cells.")
+#     else
+#         out@Known <- design
+# }
 
 # genevars <- matrixStats::colVars(mesc)
 # keepgene <- genevars > sort(genevars)[3000]
@@ -111,6 +141,205 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 # gsmall <- gl[grep("CELL", names(gl))]
 # toGmt(gsmall, con = "reactome_subset.gmt")
 # genesets <- gsmall
+
+
+################################################################################
+### Initialize a SlalomModel class object
+
+#' Initialize a SlalomModel object
+#'
+#' Initialize a SlalomModel with sensible starting values for parameters before
+#' training the model.
+#'
+#' @param object a \code{Rcpp_SlalomModel} object
+#' @param alpha_priors numeric(2) giving alpha and beta hyperparameters for a
+#' gamma prior distribution for alpha parameters (precision of factor weights)
+#' @param epsilon_priors numeric(2) giving alpha and beta hyperparameters for a
+#' gamma prior distribution for noise precision parameters
+#' @param noise character(1) defining noise model, defaults to "gauss" for
+#' Gaussian noise model
+#' @param ... generic arguments passed to \code{Rcpp_SlalomModel} method
+#'
+#' @details It is strongly recommended to use \code{\link{newSlalomModel}} to
+#' create the \code{\link{SlalomModel}} object prior to applying
+#' \code{initialize}.
+#'
+#' @docType methods
+#' @name init
+#' @rdname init
+#' @aliases init init,Rcpp_SlalomModel-method
+#'
+#' @author Davis McCarthy
+#' @importFrom rsvd rpca
+#' @importFrom stats runif
+#' @importFrom stats rnorm
+#' @export
+#' @examples
+#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+#' genesets <- GSEABase::getGmt(gmtfile)
+#' data("mesc")
+#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+#' model <- init(model)
+setGeneric("init", function(object, ...) standardGeneric("init"))
+
+#' @name init
+#' @rdname init
+#' @docType methods
+#' @export
+setMethod("init", "Rcpp_SlalomModel", function(
+    object, alpha_priors = NULL, epsilon_priors = NULL,  noise_model = "gauss") {
+    ## define noise model
+    noise_model <- match.arg(noise_model, c("gauss")) ## future: support "hurdle", "poisson"
+    object$noiseModel <- noise_model
+    ## define priors for alpha and epsilon
+    if (!is.null(alpha_priors)) {
+        object$alpha_pa <- alpha_priors[0]
+        object$alpha_pb <- alpha_priors[1]
+        object$alpha_a <- rep(object$alpha_pa, object$K)
+        object$alpha_b <- rep(object$alpha_pb, object$K)
+        object$alpha_E1 <- object$alpha_b / object$alpha_a
+        object$alpha_lnE1 <- digamma(object$alpha_a) - log(object$alpha_b)
+    }
+    if (!is.null(epsilon_priors)) {
+        object$epsilon_pa <- epsilon_priors[0]
+        object$epsilon_pb <- epsilon_priors[1]
+        object$epsilon_a <- rep(object$epsilon_pa, object$G)
+        object$epsilon_b <- rep(object$epsilon_pb, object$G)
+        object$epsilon_E1 <- object$epsilon_b / object$epsilon_a
+        object$epsilon_lnE1 <- digamma(object$epsilon_a) - log(object$epsilon_b)
+    }
+
+    ## pi is likelihood of link for genes x factors, defined in object from
+    ## annotated gene sets with newSlalomModel
+    ## define the number of genes that are "on" for each factor
+    object$nOn <- colSums(object$pi > 0.5)
+
+    ## define initial expected values for indicator variables Z with observed
+    ## annotations
+    object$Z_E1 <- object$Y
+    tmp <- object$pi
+    tmp[tmp < 0.2] <- 0.01
+    object$Z_init <- tmp
+
+    ## bits and bobs
+    object$onF <- object$nScale # object@nScale
+    # object@isExpressed <- (object@Z[["E1"]] > 0) * 1.0
+    # object@numExpressed <- colSums(object@Z[["E1"]] > 0)
+
+    ## initialize parameters using random PCA method
+    object <- .initializePCARand_Rcpp(object)
+    ## check validity of object and return
+    # validObject(object)
+    object
+})
+
+
+.initializePCARand_Rcpp <- function(object, seed = 222, saveInit = FALSE) {
+    set.seed(seed)
+    # Zstd <- object$Z[["E1"]]
+    ## initialize some objects
+    Ystd <- object$Y
+    unif_vars <- stats::runif(nrow(object$pi) * ncol(object$pi))
+    Ion <- matrix(unif_vars, nrow = nrow(object$pi)) < object$Z_init
+    object$X_E1 <- matrix(nrow = object$N, ncol = object$K)
+    object$X_diagSigmaS <- matrix(1.0 / 2, nrow = object$N, ncol = object$K)
+    object$W_E1 <- matrix(nrow = object$G, ncol = object$K)
+    ## initialize gamma component of weights
+    object$W_gamma0 <- object$Z_init
+    object$W_gamma0[object$W_gamma0 <= 0.1] <- 0.1
+    object$W_gamma0[object$W_gamma0 >= 0.9] <- 0.9
+    object$W_gamma1 <- 1.0 - object$W_gamma0
+    ## initialised annotated gene set factors
+    for (k in seq_len(object$nAnnotated)) {
+        k <- k + object$nKnown
+        object$W_E1[, k] <- sqrt(1.0 / object$K) * stats::rnorm(object$G)
+        object$X_diagSigmaS[, k] <- 1.0 / 2
+        if (sum(Ion[,k]) > 5) {
+            ## randomized PCA for speed
+            pca <- rsvd::rpca(Ystd[, Ion[, k]], k = 1, retx = TRUE)
+            object$X_E1[, k] <- pca$x[, 1] / scale(pca$x[, 1])
+        } else {
+            object$X_E1[, k] <- stats::runif(object$N)
+        }
+    }
+    ## initialise known factors
+    if (object$nKnown > 0L) {
+        for (k in seq_len(object$nKnown)) {
+            object$W_E1[, k] <- sqrt(1.0 / object$K) * stats::rnorm(object$G)
+            object$X_diagSigmaS[, k] <- 1.0 / 2
+        }
+        object$X_E1[, seq_len(object$nKnown)] <- object$Known
+    }
+    ## initialise hidden (latent) factors
+    if (object$nHidden > 0L) {
+        for (iL in object$iUnannotatedDense) {
+            object$X_E1[, iL] <- stats::rnorm(object$N)
+            object$W_E1[, iL] <- sqrt(1.0 / object$K) * stats::rnorm(object$G)
+        }
+    }
+    ## save initial X values if desired
+    if (saveInit) {
+        object$X_init <- object$X_init
+    }
+    object
+}
+
+
+################################################################################
+### Train a SlalomModel class object
+
+#' Train a SlalomModel object
+#'
+#' Train a SlalomModel to infer model parameters.
+#'
+#' @param object a \code{Rcpp_SlalomModel} object
+#' @param nIterations integer(1) maximum number of iterations to use in training
+#' the model (default: 5000)
+#' @param tolerance numeric(1) tolerance to allow between iterations
+#' (default 1e-08)
+#' @param forceIterations logical(1) should the model be forced to update
+#' \code{nIteration} times?
+#' @param minIterations integer(1) minimum number of iterations to perform.
+#' @param ... generic arguments passed to \code{Rcpp_SlalomModel} method
+#'
+#' @details Train the model using variational Bayes methods to infer parameters.
+#'
+#' @docType methods
+#' @name train
+#' @rdname train
+#' @aliases train train,Rcpp_SlalomModel-method
+#'
+#' @author Davis McCarthy
+#' @export
+#' @examples
+#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+#' genesets <- GSEABase::getGmt(gmtfile)
+#' data("mesc")
+#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+#' model <- init(model)
+#' model <- train(model, nIterations = 1000)
+#' model <- train(model)
+setGeneric("train", function(object, ...) standardGeneric("train"))
+
+#' @name train
+#' @rdname train
+#' @docType methods
+#' @export
+setMethod("train", "Rcpp_SlalomModel", function(
+    object, nIterations = 5000, tolerance = 1e-08, forceIterations = FALSE,
+    minIterations = 700) {
+    ## define training parameters in object
+    object$tolerance <- tolerance
+    object$nIterations <- nIterations
+    object$forceIterations <- forceIterations
+    object$shuffle <- TRUE ## shuffle order in which factors are updated each
+    ## for each training iteration
+
+    ## train model
+    object$train()
+    ## return object
+    object
+})
 
 
 ################################################################################
@@ -174,210 +403,4 @@ setValidity("SlalomModel", function(object) {
 
     if (valid) TRUE else msg
 })
-
-
-################################################################################
-### Initialize a SlalomModel class object
-
-#' Initialize a SlalomModel object
-#'
-#' Initialize a SlalomModel with sensible starting values for parameters before
-#' training the model.
-#'
-#' @param object a \code{SlalomModel} object
-#' @param alpha_priors numeric(2) giving alpha and beta hyperparameters for a
-#' gamma prior distribution for alpha parameters (precision of factor weights)
-#' @param epsilon_priors numeric(2) giving alpha and beta hyperparameters for a
-#' gamma prior distribution for noise precision parameters
-#' @param noise character(1) defining noise model, defaults to "gauss" for
-#' Gaussian noise model
-#' @param ... generic arguments passed to
-#'
-#' @details It is strongly recommended to use \code{\link{newSlalomModel}} to
-#' create the \code{\link{SlalomModel}} object prior to applying
-#' \code{initialize}.
-#'
-#' @docType methods
-#' @name init
-#' @rdname init
-#' @aliases init init,SlalomModel-method
-#'
-#' @author Davis McCarthy
-#' @importFrom rsvd rpca
-#' @importFrom stats runif
-#' @importFrom stats rnorm
-#' @export
-#' @examples
-#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
-#' genesets <- GSEABase::getGmt(gmtfile)
-#' data("mesc")
-#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
-#' model <- init(model)
-setGeneric("init", function(object, ...) standardGeneric("init"))
-
-#' @name init
-#' @rdname init
-#' @docType methods
-#' @export
-setMethod("init", "SlalomModel", function(
-    object, alpha_priors = NULL, epsilon_priors = NULL,  noise = "gauss") {
-    ## define priors for alpha and epsilon
-    if (is.null(object@alpha[["priors"]]))
-        object@alpha[["priors"]] <- c(1e-03, 1e-03)
-    if (is.null(object@epsilon[["priors"]]))
-        object@epsilon[["priors"]] <- c(1e-03, 1e-03)
-
-    ## pi is likelihood of link for genes x factors, defined in object from
-    ## annotated gene sets with newSlalomModel
-    ## define the number of genes that are "on" for each factor
-    object@nOn <- colSums(object@pi > 0.5)
-
-    ## define initial expected values for indicator variables Z with observed
-    ## annotations
-    object@Z[["E1"]] <- object@pi
-    object@Z[["initZ"]] <- object@pi
-    object@Z[["initZ"]][object@Z[["initZ"]] < 0.2] <- 0.01
-
-    ## bits and bobs
-    # object@onF <- object@nScale # object@nScale
-    # object@isExpressed <- (object@Z[["E1"]] > 0) * 1.0
-    # object@numExpressed <- colSums(object@Z[["E1"]] > 0)
-
-    ## initialize parameters using random PCA method
-    object <- .initializePCARand(object)
-    ## check validity of object and return
-    validObject(object)
-    object
-})
-
-
-.initializePCARand <- function(object, seed = 222, saveInit = FALSE) {
-    set.seed(seed)
-    # Zstd <- object@Z[["E1"]]
-    ## initialize some objects
-    Ystd <- object@Y
-    unif_vars <- stats::runif(nrow(object@pi) * ncol(object@pi))
-    Ion <- matrix(unif_vars, nrow = nrow(object@pi)) < object@Z[["initZ"]]
-    object@X[["E1"]] <- matrix(nrow = object@N, ncol = object@K)
-    object@X[["diagSigmaS"]] <- matrix(1.0 / 2, nrow = object@N, ncol = object@K)
-    object@W[["E1"]] <- matrix(nrow = object@G, ncol = object@K)
-    ## initialize gamma component of weights
-    object@W[["gamma0"]] <- object@Z[["initZ"]]
-    object@W[["gamma0"]][object@W[["gamma0"]] <= 0.1] <- 0.1
-    object@W[["gamma0"]][object@W[["gamma0"]] >= 0.9] <- 0.9
-    object@W[["gamma1"]] <- 1.0 - object@W[["gamma0"]]
-    ## initialised annotated gene set factors
-    for (k in seq_len(object@nAnnotated)) {
-        k <- k + object@nKnown
-        if (sum(Ion[,k]) > 5) {
-            ## randomized PCA for speed
-            pca <- rsvd::rpca(Ystd[, Ion[, k]], k = 1, retx = TRUE)
-            object@X[["E1"]][, k] <- pca$x[, 1] / scale(pca$x[, 1])
-        } else {
-            object@X[["E1"]][, k] <- stats::runif(object@N)
-            object@W[["E1"]][, k] <- sqrt(1.0 / object@K) * stats::rnorm(object@G)
-            object@X[["diagSigmaS"]][, k] <- 1.0 / 2
-        }
-    }
-    ## initialise known factors
-    if (object@nKnown > 0L) {
-        for (k in seq_len(object@nKnown)) {
-            object@W[["E1"]][, k] <- sqrt(1.0 / object@K) * stats::rnorm(object@G)
-            object@X[["diagSigmaS"]][, k] <- 1.0 / 2
-        }
-        object@X[["E1"]][, seq_len(object@nKnown)] <- object@Known
-    }
-    ## initialise hidden (latent) factors
-    if (object@nHidden > 0L) {
-        for (iL in object@iUnannotatedDense)
-            object@X[["E1"]][,iL] <- stats::rnorm(object@N)
-    }
-    ## save initial X values - currently ignored
-    if (saveInit) {
-        object@X[["initX"]] <- object@X[["E1"]]
-    }
-    object
-}
-
-
-# .initializePCA <- function(object, seed = 222) {
-#     set.seed(seed)
-#     #pca initialisation
-#     Ion <- matrix(stats::runif(nrow(object@pi) * ncol(object@pi))) < object@pi
-#     object@W[["gamma"]] <- object@pi
-#     for (k in seq_len(object@K)) {
-#         sv <- svd(object@Z[["E1"]][, Ion[:, k]])
-#         s0 <- sv$u[, 1]
-#         w0 <- t(sv$d %*% sv$v)[, 1]
-#         v <- scale(s0)
-#         s0 <- s0 / v
-#         w0 <- w0 * v
-#         object@X[["E1"]][, k] <- s0
-#         object@W[["E1"]][Ion[, k], k] <- w0
-#         object@W[["E1"]][!Ion[, k], k] <- (object@sigmaOff *
-#                                                object@W[["E1"]][!Ion[, k], k])
-#         object@X[["diagSigmaS"]][, k] <- 1.0 / 2
-#     }
-#     object
-# }
-
-#
-# .initializeGreedy <- function() {
-#     object@X[["E1"]] = random.randn(self._N,object@K)
-#     self.W.E1 = random.randn(self._D,object@K)
-#     Ion = (self.Pi>0.5)
-#     self.W.E1[~Ion]*= self.sigmaOff
-#     for k in range(Ion.shape[1]):
-#         self.W.E1[Ion[:,k]]*=self.sigmaOn[k]
-# }
-#
-#
-# .initializePrior <- function() {
-#     Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.Pi
-#     self.W.E1[~Ion]*=self.sigmaOff
-#     for k in range(Ion.shape[1]):
-#         self.W.E1[Ion[:,k],k]*=self.sigmaOn[k]
-# }
-#
-#
-# .initializeOn <- function() {
-#     for k in range(Ion.shape[1]):
-#         self.W.E1[:,k]*=self.sigmaOn[k]
-# }
-#
-#
-# .initializeRandom <- function() {
-#     for k in range(self.Pi.shape[1]):
-#         self.S.diagSigmaS[:,k] = 1./2
-#         object@X[["E1"]][:,k] = SP.randn(self._N)
-#         self.W.E1 = SP.randn(self._D, self.Pi.shape[1])
-#         object@W[["gamma"]][:,:,0] = self.Pi
-#         object@W[["gamma"]][:,:,0][object@W[["gamma"]][:,:,0]<=.2] = .1
-#         object@W[["gamma"]][:,:,0][object@W[["gamma"]][:,:,0]>=.8] = .9
-#         if self.nKnown>0:
-#             for k in SP.arange(self.nKnown):
-#             self.W.E1[:,k] = SP.sqrt(1./object@K)*SP.randn(self._D)
-#         self.S.diagSigmaS[:,k] = 1./2
-#         object@X[["E1"]][:,SP.arange(self.nKnown)] =  self.Known
-#         if self.saveInit==True:
-#             self.initS = object@X[["E1"]].copy()
-#
-# }
-#
-# .initializeData <- function() {
-#     assert ('S' in list(init_factors.keys()))
-#     assert ('W' in list(init_factors.keys()))
-#     #            Ion = init_factors['Ion']
-#     Sinit = init_factors['S']
-#     Winit = init_factors['W']
-#     object@W[["gamma"]][:,:,0] = self.Pi
-#     object@W[["gamma"]][:,:,0][object@W[["gamma"]][:,:,0]<=.2] = .1
-#     object@W[["gamma"]][:,:,0][object@W[["gamma"]][:,:,0]>=.8] = .9
-#     for k in range(object@K):
-#         object@X[["E1"]][:,k] = Sinit[:,k]
-#     self.W.E1[:,k] = Winit[:,k]
-#     self.S.diagSigmaS[:,k] = 1./2
-# }
-#
-
 

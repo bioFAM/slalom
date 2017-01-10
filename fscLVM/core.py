@@ -22,6 +22,7 @@ from sklearn import metrics
 from sklearn.linear_model import LinearRegression
 import re
 from sklearn.decomposition import PCA
+import scipy.special as special
 
 
 
@@ -55,17 +56,25 @@ class CNodeWsparse(CNodeW):
     def __init__(self,net,**kwargin):
         #call base class initialisation
         #CNodeW.__init__(self,net,**kwargin)
-        self.Pi = zeros([net.Pi.shape[0],net.Pi.shape[1],2])
-        self.Pi[:,:,0] =net.Pi
-        self.Pi[:,:,1] = 1.-net.Pi
 
-        self.C    = self.Pi.copy()
+        self.C    = zeros([net.Pi.E1.shape[0],net.Pi.E1.shape[1],2])
+        self.C[:,:,0] =net.Pi.E1.copy()
+        self.C[:,:,1] = 1.-net.Pi.E1
+
         self.Ilabel = SP.arange(net.components)
 
     def update(self,net=None):
         pass
 
 
+class CNodePi(ABetaNode):
+    """Abstract CnodePi basclass"""
+    def __init__(self,net,prior=[[1,1],[40,2],[2,40],[1,1]], E1=None):
+        ABetaNode.__init__(self,dim=[net.nKnown,net.nLatent,net.nLatentSparse,net.nAnno],
+            K=net._D,prior=prior, E1=E1)
+        
+    def update(self,net):
+        pass
 
         
 class CNodeWsparseVEM(CNodeWsparse):
@@ -152,11 +161,11 @@ class CSparseFA(AExpressionModule):
         """      
 
         if terms is None:
-            return (self.Pi>.5)
+            return (self.Pi.E1>.5)
         else:
             #subset terms
             term_index = self.getTermIndex(terms)
-            return (self.Pi[:,term_index]>.5)
+            return (self.Pi.E1[:,term_index]>.5)
 
 
     def getW(self,terms=None):
@@ -190,10 +199,10 @@ class CSparseFA(AExpressionModule):
                 term        (str): optional list of terms for which weights are returned. Default None=all terms.
         """        
         if terms is None:
-            return self.Pi
+            return self.Pi.E1
         else:
             term_index = self.getTermIndex(terms)
-            return self.Pi[:,term_index]
+            return self.Pi.E1[:,term_index]
 
     def getZchanged(self,terms=None, threshold=0.5):
         """get matrix indicating whether the posterior distribution has changed for individual terms/genes
@@ -295,11 +304,18 @@ class CSparseFA(AExpressionModule):
         Zr = S.dot(self.S.E1,(self.W.E1.T*Ion.T))
         Zd = self.Z.E1-Zr
         error = (abs(Zd)).mean()
+        #Fold = self.calcBound()
 
         for iter in range(nIterations):
             #t = time.time();
             self.update()
             self.iterationCount+=1
+
+
+            #Fnew = self.calcBound()
+            #print(Fnew-Fold)
+            #Fold = Fnew            
+
             if SP.mod(iter,100)==0:
                 error_old = error.copy()
                 Zr = S.dot(self.S.E1,self.W.E1.T)
@@ -340,6 +356,9 @@ class CSparseFA(AExpressionModule):
             
             #keep diagSigmaS
             self.Eps.diagSigmaS[m] = SP.sum(self.S.diagSigmaS[:,m])
+
+
+
         else:
             SW2_sigma = (self.W.C[:, m,0]*(self.W.E2diag[:, m]))*self.Eps.E1 
             alphaSm = SP.sum(SW2_sigma, 0)
@@ -353,23 +372,25 @@ class CSparseFA(AExpressionModule):
             YmeanX = self.meanX
 
         if (m<self.nKnown) or (m in self.iLatentSparse) or (m in self.iLatent):
-            logPi = SP.log(self.Pi[:,m]/(1-self.Pi[:,m]))            
-        elif self.nScale>0 and self.nScale<YmeanX.shape[0]:
-            logPi = SP.log(self.Pi[:,m]/(1-self.Pi[:,m]))            
-            isOFF_ = self.Pi[:,m]<.5        
-            logPi[isOFF_] = (YmeanX.shape[0]/self.nScale)*SP.log(self.Pi[isOFF_,m]/(1-self.Pi[isOFF_,m]))   
+            #logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))                        
+            logPi = (self.Pi.lnE1 - (special.digamma(self.Pi.b) - special.digamma(self.Pi.a+self.Pi.b)))[:,m]
 
-            isON_ = self.Pi[:,m]>.5        
+        elif self.nScale>0 and self.nScale<YmeanX.shape[0]:
+            logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))   
+            #logPi = self.Pi.lnE1 - (special.digamma(self.Pi.b) - special.digamma(self.Pi.a+self.Pi.b))
+            isOFF_ = self.Pi.E1[:,m]<.5        
+            logPi[isOFF_] = (YmeanX.shape[0]/self.nScale)*SP.log(self.Pi.E1[isOFF_,m]/(1-self.Pi.E1[isOFF_,m]))   
+
+            isON_ = self.Pi.E1[:,m]>.5        
 
             if self.onF>1.:
-                logPi[isON_] = self.onF*SP.log(self.Pi[isON_,m]/(1-self.Pi[isON_,m]))
+                logPi[isON_] = self.onF*SP.log(self.Pi.E1[isON_,m]/(1-self.Pi.E1[isON_,m]))
 
         else:
             onF = 1.
-            logPi = SP.log(self.Pi[:,m]/(1-self.Pi[:,m]))  
+            logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))  
 
-
-
+        #pdb.set_trace()
         sigma2Sigmaw = (1.0/self.Eps.E1)*self.Alpha.E1[m]
 
                    
@@ -383,12 +404,12 @@ class CSparseFA(AExpressionModule):
         SmTSmSig = SmTSm + sigma2Sigmaw
         
         #update C and W 
-        
+        #pdb.set_trace()
         u_qm = logPi + 0.5*SP.log(sigma2Sigmaw) - 0.5*SP.log(SmTSmSig) + (0.5*self.Eps.E1)*((diff**2)/SmTSmSig)
         self.W.C[:, m,0] = 1./(1+SP.exp(-u_qm))
 
         self.W.C[:,m,1] = 1-self.W.C[:,m,0]
-        self.W.E1[:, m] = (diff/SmTSmSig)                                #q(w_qm | s_qm=1), q=1,...,Q
+        self.W.E1[:, m] = (diff/SmTSmSig)                                
         self.W.sigma2[:, m] = (1./self.Eps.E1)/SmTSmSig
         self.W.E2diag[:,m] = self.W.E1[:,m]**2 + self.W.sigma2[:,m] 
 
@@ -399,6 +420,16 @@ class CSparseFA(AExpressionModule):
         self.Alpha.a[m] = self.Alpha.pa + 0.5*Ewdwd        
         self.Alpha.b[m] = self.Alpha.pb + SP.sum(self.W.C[:,m,0])/2.0             
         self.Alpha.E1[m] = self.Alpha.b[m]/self.Alpha.a[m]
+
+
+
+    def updateAlphaW(self,m):
+            #update Alpha
+        Ewdwd = SP.sum(self.W.C[:,m,0]*self.W.E2diag[:,m])
+        self.Alpha.b[m] = self.Alpha.pb + 0.5*(Ewdwd+ SP.sum((1-self.W.C[:,m,0])*(1/self.Alpha.E1[m])))
+        self.Alpha.a[m] = self.Alpha.pa + self.W.E1.shape[0]/2.0             
+        self.Alpha.E1[m] = self.Alpha.a[m]/self.Alpha.b[m]
+
         
     def updateEps(self):
         #update Eps (vertorised)
@@ -412,8 +443,12 @@ class CSparseFA(AExpressionModule):
         t1 = SP.sum(SW_sigma*SP.dot(self.Z.E1.transpose(),self.S.E1), 1)
         t2 = SP.sum(SW2_sigma*SP.tile(SP.diag(muSTmuS).T + self.Eps.diagSigmaS,(self._D,1)), 1) 
         t3 = SP.sum( SP.dot(SW_sigma,muSTmuS0)*SW_sigma, 1)
+        #self.Eps.E1 = 1./((self.Eps.pb+0.5*(self.ZZ  + (-2*t1 + t2 + t3)))/(0.5*self._N+self.Eps.pa))
+        self.Eps.E1 = 1./((0.5*(self.ZZ  + (-2*t1 + t2 + t3)))/(0.5*self._N))
 
-        self.Eps.E1 = 1./((self.ZZ  + (-2*t1 + t2 + t3))/self._N) 
+        #pdb.set_trace()
+        self.Eps.a = SP.repeat(0.5*self._N+self.Eps.pa,self._D)
+        self.Eps.b = self.Eps.pb+0.5*(self.ZZ  + (-2*t1 + t2 + t3))
         self.Eps.E1[self.Eps.E1>1E6]=1E6
 
     def updateEpsDrop(self):
@@ -435,6 +470,11 @@ class CSparseFA(AExpressionModule):
         self.Eps.E1[self.Eps.E1>1/4.]=1/4.#Bernoulli limit
         self.Eps.E1[self.Eps.E1>1e5]=1e5
 
+    def updatePi(self,m):
+        self.Pi.a[:,m] = self.Pi.pa[:,m] + SP.sum(self.W.C[:,m,0])
+        self.Pi.b[:,m] = self.Pi.pa[:,m] + self._D -  SP.sum(self.W.C[:,m,0])
+        self.Pi.E1[:,m] = self.Pi.a[:,m]/(self.Pi.a[:,m]+self.Pi.b[:,m])
+        self.Pi.lnE1 = special.digamma(self.Pi.a) - special.digamma(self.Pi.a+self.Pi.b)
 
     def update(self):
         """ Perform update of weights (with spike-and-slab prior), ARD parameters, factors, annd noise parameters. Called by `iterate` method.                                                          
@@ -449,7 +489,11 @@ class CSparseFA(AExpressionModule):
             mRange[self.nKnown:] = SP.random.permutation(mRange[self.nKnown:])
         for m in mRange:
             self.updateW(m)
-            self.updateAlpha(m)
+
+            if self.learnPi==True:
+                if m in self.iLatent:#SP.hstack([self.iLatentSparse, self.iLatent]):
+                    self.updatePi(m)
+            self.updateAlphaW(m)
             self.updateS(m) 
 
         if self.noise=='gauss':
@@ -469,9 +513,10 @@ class CSparseFA(AExpressionModule):
     def getNchanged(self):
         """ Return number of annotations changed by the model (sum of included and exluded genes )
         """
-        i_use = SP.setxor1d(SP.arange(self.Pi.shape[1]), SP.hstack([self.iLatentSparse, self.iLatent]))
-        nChanged = SP.sum((self.Pi>.5)!=(self.W.C[:,:,0]>.5), 0)[i_use]*1.0
-        nChangedRel = nChanged/SP.sum((self.Pi>.5), 0)[i_use]
+        i_use = SP.setxor1d(SP.arange(self.Pi.E1.shape[1]), SP.hstack([self.iLatentSparse, 
+                self.iLatent, SP.arange(self.nKnown)]))
+        nChanged = SP.sum((self.Pi.E1>.5)!=(self.W.C[:,:,0]>.5), 0)[i_use]*1.0
+        nChangedRel = nChanged/SP.sum((self.Pi.E1>.5), 0)[i_use]
         return (nChanged, nChangedRel)
 
 
@@ -481,9 +526,9 @@ class CSparseFA(AExpressionModule):
         """
         (nChanged, nChangedRel) = self.getNchanged()
         if nChangedRel.max()<1:
-            print('Maximally ', '%d%% Genes per factor changed.' % nChangedRel.max()*100.)
+            print('Maximally ', '%d%% Genes per factor changed.' % float(nChangedRel.max()*100.))
         else:
-            print('Maximally ', '%d%% Genes per factor changed. Re-run with sparse annotated factors.' % nChangedRel.max()*100.)
+            print('Maximally ', '%d%% Genes per factor changed. Re-run with sparse annotated factors.' % float(nChangedRel.max()*100.))
 
 
 
@@ -493,24 +538,24 @@ class CSparseFA(AExpressionModule):
         #handle setting of parameters via Bayesnet constructor
         ABayesNet.__init__(self,parameters=parameters)
         #priors for the various components:
-        if not hasattr(self, 'priors'):
+        if not hasattr(self, 'priors') or self.priors is None:
             self.priors = {}
         if('Alpha' not in self.priors): self.priors['Alpha']={'priors': [1E-3,1E-3]}
         if('Eps' not in self.priors):   self.priors['Eps']={'priors': [1E-3,1E-3]}
+        if('PiSparse' not in self.priors):   self.priors['PiSparse']={'priors': [2,40]}
+        if('PiDense' not in self.priors):   self.priors['PiDense']={'priors': [40,2]}
         
         self.dataNode=None
 
         if init_data is not None:
             self.init(init_data)
 
-    def init(self,init_data,Pi=None,terms=None, noise='gauss', init_factors=None, unannotated_id = "hidden"):
+    def init(self,init_data,Pi=None,terms=None, noise='gauss', init_factors=None, unannotated_id = "hidden", covariates=None):
         #initialize the model instance"""
         #AGAussNode is defined in ExpresisonNet
         #expr Y ~ N(\mu= expr, \sigma = 0)
         pattern_hidden = re.compile(unannotated_id+'\d')
         pattern_hiddenSparse = re.compile(unannotated_id+"\D*parse"+"\d")
-
-        #pdb.set_trace()
 
         Ihidden = SP.array([pattern_hidden.match(term) is not None for term in terms])
         IhiddenSparse = SP.array([pattern_hiddenSparse.match(term) is not None for term in terms])
@@ -542,10 +587,20 @@ class CSparseFA(AExpressionModule):
                 self.Known = init_factors['Known']
                 assert self.Known.shape[0] == self._N
                 self.nHidden = self.components-self.nKnown
-
+        elif not (covariates is None):
+            self.nKnown = covariates.shape[1]
+            #self.iKnown = SP.arange(covariates.shape[1])
+            self.Known = covariates
+            assert self.Known.shape[0] == self.Z.E1.shape[0]
+            self.nHidden = self.components-self.nKnown            
+            #mean term/'bias'
+            if terms[0]=='bias':
+                self.Known = SP.hstack(SP.ones((self.Z.E1.shape[0],1), self.Known)) 
+                self.nKnown += 1 
+                self.nHidden = self.nHidden-1           
         #mean term/'bias'
         elif terms[0]=='bias':
-            Known =SP.ones((self.Z.E1.shape[0],1)) 
+            self.Known =SP.ones((self.Z.E1.shape[0],1))#make sure this was correct?
             self.nKnown = 1 
             self.nHidden = self.components-self.nKnown  
         else:
@@ -582,28 +637,41 @@ class CSparseFA(AExpressionModule):
             self.initZ = Pi.copy()
             self.initZ[self.initZ<.2] = 0.01
         
+        self.nAnno = self.nHidden-self.nLatentSparse-self.nLatent
+        #pdb.set_trace()
         #Pi is likelihood of link for genes x factors
-        self.Pi = Pi
-        self.Non = (self.Pi>.5).sum(0)
+        
+                     
+        #self.Pi = Pi
+
         # set dimensionality of the data
         [self._N, self._D] = self.Z.E1.shape
         self.ZZ = SP.zeros((self._D,))
         for d in range(self._D):
             self.ZZ[d] = SP.sum(self.Z.E1[:,d]*self.Z.E1[:,d], 0)
+        
 
-        if self.Pi is not None:
-            assert self.Pi.shape == (self._D,self.components)
+        PiPriors= [[1.,1.],self.priors['PiDense']['priors'],self.priors['PiSparse']['priors'],[1.,1.]]
+        self.Pi = CNodePi(self,PiPriors, Pi)
+        self.piInit = Pi.copy()
 
-            
-
-        self.nodes = {'S':CNodeSsparse(self),'W':CNodeWsparseVEM(self), 'Alpha':CNodeAlphasparse(self,self.priors['Alpha']['priors']),'Eps':CNodeEpsSparse(self,self.priors['Eps']['priors'])}
+        self.nodes = {'S':CNodeSsparse(self),
+                     'Pi':self.Pi,
+                     'W':CNodeWsparseVEM(self), 
+                     'Alpha':CNodeAlphasparse(self,self.priors['Alpha']['priors']),
+                     'Eps':CNodeEpsSparse(self,self.priors['Eps']['priors'])}
         for n in list(self.nodes.keys()): setattr(self,n,self.nodes[n])
+
+        self.Non = (self.Pi.E1>.5).sum(0)
+        if self.Pi is not None:
+            assert self.Pi.E1.shape == (self._D,self.components)        
+        
 
         #pca initialisation
         Ion = None
         if self.initType == 'pca':
-            Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.Pi
-            self.W.C[:,:,0] = self.Pi.copy()
+            Ion = random.rand(self.Pi.E1.shape[0],self.Pi.E1.shape[1])<self.Pi.E1
+            self.W.C[:,:,0] = self.Pi.E1.copy()
             #self.W.C[:,:,0][self.W.C[:,:,0]<=.2] = .1
             #self.W.C[:,:,0][self.W.C[:,:,0]>=.8] = .9
             for k in range(self.components):
@@ -629,7 +697,7 @@ class CSparseFA(AExpressionModule):
                 Zstd = self.Z.E1
                 #Zstd -= Zstd.mean(0)
 
-            Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.initZ
+            Ion = random.rand(self.Pi.E1.shape[0],self.Pi.E1.shape[1])<self.initZ
             self.W.C[:,:,0] = self.initZ
             self.W.C[:,:,0][self.W.C[:,:,0]<=.1] = .1
             self.W.C[:,:,0][self.W.C[:,:,0]>=.9] = .9
@@ -674,13 +742,13 @@ class CSparseFA(AExpressionModule):
         elif self.initType == 'greedy':
             self.S.E1 = random.randn(self._N,self.components)
             self.W.E1 = random.randn(self._D,self.components)
-            Ion = (self.Pi>0.5)
+            Ion = (self.Pi.E1>0.5)
             self.W.E1[~Ion]*= self.sigmaOff
             for k in range(Ion.shape[1]):
                 self.W.E1[Ion[:,k]]*=self.sigmaOn[k]
 
         elif self.initType == 'prior':
-            Ion = random.rand(self.Pi.shape[0],self.Pi.shape[1])<self.Pi
+            Ion = random.rand(self.Pi.E1.shape[0],self.Pi.E1.shape[1])<self.Pi.E1
             self.W.E1[~Ion]*=self.sigmaOff
             for k in range(Ion.shape[1]):
                 self.W.E1[Ion[:,k],k]*=self.sigmaOn[k]
@@ -688,11 +756,11 @@ class CSparseFA(AExpressionModule):
             for k in range(Ion.shape[1]):
                 self.W.E1[:,k]*=self.sigmaOn[k]
         elif self.initType == 'random':
-            for k in range(self.Pi.shape[1]):
+            for k in range(self.Pi.E1.shape[1]):
                 self.S.diagSigmaS[:,k] = 1./2
                 self.S.E1[:,k] = SP.randn(self._N)
-            self.W.E1 = SP.randn(self._D, self.Pi.shape[1])
-            self.W.C[:,:,0] = self.Pi
+            self.W.E1 = SP.randn(self._D, self.Pi.E1.shape[1])
+            self.W.C[:,:,0] = self.Pi.E1
             self.W.C[:,:,0][self.W.C[:,:,0]<=.2] = .1
             self.W.C[:,:,0][self.W.C[:,:,0]>=.8] = .9
             if self.nKnown>0:
@@ -709,7 +777,7 @@ class CSparseFA(AExpressionModule):
 #            Ion = init_factors['Ion']
             Sinit = init_factors['S']
             Winit = init_factors['W']
-            self.W.C[:,:,0] = self.Pi
+            self.W.C[:,:,0] = self.Pi.E1
             self.W.C[:,:,0][self.W.C[:,:,0]<=.2] = .1
             self.W.C[:,:,0][self.W.C[:,:,0]>=.8] = .9
             for k in range(self.components):
@@ -719,7 +787,76 @@ class CSparseFA(AExpressionModule):
 
     #calculate the variational bound:
     def calcBound(self):
-        print('Currently not implemented ')
+        #TODO: debug!! DO NOT USE 
+        F1 = -self._D*self._N/2*SP.log(2*pi) - self._N/2 * SP.sum(SP.log(1/self.Eps.E1)) - \
+            0.5*SP.sum(self.ZZ*self.Eps.E1)
+
+        SW_tau = (self.W.C[:, :,0]*self.W.E1)*SP.tile(self.Eps.E1,(self.W.E1.shape[1],1)).T
+        SW2_tau = (self.W.C[:, :,0]*(self.W.E2diag))*SP.tile(self.Eps.E1, (self.W.E1.shape[1],1)).T
+        SS = SP.sum(self.S.E1*self.S.E1,0)
+        SmTSm = SP.zeros(self.W.E1.shape[1])
+
+        F2 = SP.sum(SW_tau*SP.dot(self.Z.E1.T,self.S.E1))
+
+        F3 = 0.
+        F4 = 0.
+        F7PlusE3 = 0.5*(self.nHidden*self._N)#don't use knowns in entropy
+
+        for m in SP.arange(self.W.E1.shape[1]):
+            #F3
+            SigmaSm = 1./(1+SP.sum(self.S.diagSigmaS[:,m]))
+            SmTSm[m] = SS[m]+self._N*SigmaSm
+            F3 += SP.sum(SW2_tau[:, m], 0) * SmTSm[m]
+
+            #F4
+            rS = SP.zeros(self._N)
+            for m1 in SP.arange(m+1,self.W.E1.shape[1]):
+                tmp = (self.W.C[:, m1,0]*self.W.E1[:, m1])*SW_tau[:, m]
+                rS = rS + SP.sum(tmp,0)*self.S.E1[:,m1] 
+            F4 = F4 + SP.dot(rS,self.S.E1[:,m:m+1])
+
+            #F7
+            alphaSm= SP.sum(SW2_tau[:,m])
+            F7PlusE3 = F7PlusE3 - 0.5*self._N*SP.log(1+alphaSm)  - (0.5*self._N)/(1+alphaSm) \
+                            - 0.5*SP.dot(self.S.E1[:,m].T, self.S.E1[:,m])
+
+        F5 = -(0.5*self.components*self._D)*SP.log(2.*pi) - (0.5*self.components)*sum(SP.log(1./self.Alpha.E1)) - \
+            0.5* SP.sum(1-self.W.C[:,:,0]) + SP.sum(SP.sum(self.W.C[:,:,0]*self.W.E2diag,0)*self.Alpha.E1)
+                
+        F6 = SP.sum(SP.log(self.Pi.E1)*self.W.C[:,:,0]) + SP.sum(SP.log(1.-self.Pi.E1)*(1-self.W.C[:,:,0]))
+
+
+
+        EpslnE = special.digamma(self.Eps.a) - SP.log(self.Eps.b)
+        F8 = (self.Eps.pa-1)*SP.sum(EpslnE) - self.Eps.pb*SP.sum(self.Eps.E1)
+
+
+        AlphalnE = special.digamma(self.Alpha.a) - SP.log(self.Alpha.b)
+        F9 = (self.Alpha.pa-1)*SP.sum(AlphalnE) - self.Alpha.pb*SP.sum(self.Alpha.E1)
+
+
+        E1 = (0.5*self.components*self._D)*SP.log(2*pi) + (0.5*self.components)*SP.sum(SP.log(1./self.Alpha.E1)) + \
+            0.5*(self.components*self._D) - 0.5*SP.sum(SP.log(1./self.Alpha.E1)*(SP.sum(self.W.C[:,:,0],0))) \
+             + 0.5*SP.sum( self.W.C[:,:,0]*SP.log(self.W.sigma2))
+         
+        E2 = - SP.sum( self.W.C[:,:,0]*SP.log(self.W.C[:,:,0]+(self.W.C[:,:,0]==0)) + \
+            (1-self.W.C[:,:,0])*log(1-self.W.C[:,:,0]+(self.W.C[:,:,0]==1)))
+
+        E4 = SP.sum(self.Eps.a*SP.log(self.Eps.b)) + SP.sum((self.Eps.a-1)*EpslnE) -\
+             SP.sum(self.Eps.b*self.Eps.E1) - SP.sum(special.gammaln(self.Eps.a))
+
+
+        E5 = SP.sum(self.Alpha.a*SP.log(self.Alpha.b)) + SP.sum((self.Alpha.a-1)*AlphalnE) -\
+             SP.sum(self.Alpha.b*self.Alpha.E1) - SP.sum(special.gammaln(self.Alpha.a))             
+
+        #pdb.set_trace()
+        #F = F1 + F2 - 0.5*F3 - F4 + F5 + F6 + E1 + E2 + F7PlusE3 + F8 - E4 +F9 - E5
+        F = F1 + F2 - 0.5*F3 - F4 + F5 + F6 + E1 + E2 + F7PlusE3 #+ F8 - E4 #+F9 - E5
+
+        return F
+
+
+
 
 
 

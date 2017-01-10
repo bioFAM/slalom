@@ -14,8 +14,7 @@ write_scLVM2 <- function(countsMmusFilter, filename, minGenes=15, Known=NULL, is
   }
   
   xx <- as.list(x[mappedkeys(x)])
-  
-  
+    
   gene_ids <- geneIds(c2_set)
   sets_indices <- ids2indices(gene_ids, toupper(rownames(countsMmusFilter)))
   

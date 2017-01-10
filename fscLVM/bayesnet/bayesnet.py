@@ -140,8 +140,45 @@ class ABernoulliNode(ANode):
 
 
 
-class AGammaNode(ANode):
 
+class ABetaNode(ANode):
+
+    def __init__(self, dim=[1], prior=[[1.,1.]], K=1, E1=None):
+        ANode.__init__(self)
+
+        #save prior:
+        self._prior = S.vstack(prior)
+
+        self.a=[]
+        self.b = []     
+        for iD in S.arange(len(dim)):
+            nD = dim[iD]
+            self.a.append(S.ones(nD)*self._prior[iD,0])
+            self.b.append(S.ones(nD)*self._prior[iD,1])
+
+        self.a = S.repeat(S.hstack(self.a)[:,S.newaxis],K,1).T
+        self.b = S.repeat(S.hstack(self.b)[:,S.newaxis],K,1).T
+        #self.a = S.hstack(self.a)
+        #self.b = S.hstack(self.b)      
+
+        self.pa = self.a.copy()
+        self.pb = self.b.copy()
+
+        ABetaNode.update(self) 
+
+        # Manually set E1 if needed
+        if(E1 is not None): 
+            self.E1 = E1
+
+    def update(self):
+        self.E1 = self.a/(self.a+self.b)
+        #self.E2 = self.a*(self.a+1)/((self.a+self.b)*(self.a+self.b+1))
+        self.lnE1 = special.digamma(self.a) - special.digamma(self.a+self.b)
+
+
+
+
+class AGammaNode(ANode):
 
     def __init__(self, dim=[1], prior=[1E-3,1E-3], E1=None):
         L.debug('AGammaNode __init__')
@@ -304,7 +341,8 @@ class ABayesNet(ANode):
         dp['shuffle']   = True
         dp['saveInit']   = False
         dp['nScale']   = 100.0
-        dp['idx_genes']   = None        
+        dp['idx_genes']   = None 
+        dp['learnPi']   = True        
         return dp
 
     def __init__(self,parameters=None,nodes={}, schedule=[]):

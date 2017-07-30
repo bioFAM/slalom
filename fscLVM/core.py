@@ -109,7 +109,7 @@ class CSparseFA(AExpressionModule):
         """Get imputed expression values
 
         """        
-        if self.nois=='gauss':
+        if self.noise=='gauss':
             print("Returning reconstructed gene expression Y = Q(X)*Q(W)^TQ(Z)^T")
             F = SP.dot(self.S.E1,(self.W.E1*self.W.C[:,:,0]).T)
         else:
@@ -318,7 +318,7 @@ class CSparseFA(AExpressionModule):
 
             if SP.mod(iter,100)==0:
                 error_old = error.copy()
-                Zr = S.dot(self.S.E1,self.W.E1.T)
+                Zr = S.dot(self.S.E1,self.W.E1.T*self.W.C[:, :,0].T)
                 Zd = self.Z.E1-Zr
                 error = (abs(Zd)).mean()
 
@@ -340,6 +340,8 @@ class CSparseFA(AExpressionModule):
                 YmeanX = self.meanX
 
             setMinus = SP.int_(SP.hstack([list(range(M))[0:m],list(range(M))[m+1::]]))
+            #only account for actors that haven't been switched off already
+            setMinus = setMinus[self.doUpdate[setMinus]==1]
 
             #update S
             SW_sigma = (self.W.C[:, m,0]*self.W.E1[:, m])*self.Eps.E1
@@ -366,14 +368,15 @@ class CSparseFA(AExpressionModule):
             
     def updateW(self,m):
         M = self.components
+        Muse = self.doUpdate.sum()
         if self.noise=='gauss':
             YmeanX = self.Z.E1
         elif self.noise=='hurdle' or self.noise=='poisson':
             YmeanX = self.meanX
 
         if (m<self.nKnown) or (m in self.iLatentSparse) or (m in self.iLatent):
-            #logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))                        
-            logPi = (self.Pi.lnE1 - (special.digamma(self.Pi.b) - special.digamma(self.Pi.a+self.Pi.b)))[:,m]
+            logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))                        
+            #logPi = (self.Pi.lnE1 - (special.digamma(self.Pi.b) - special.digamma(self.Pi.a+self.Pi.b)))[:,m]
 
         elif self.nScale>0 and self.nScale<YmeanX.shape[0]:
             logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))   
@@ -390,12 +393,13 @@ class CSparseFA(AExpressionModule):
             onF = 1.
             logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))  
 
-        #pdb.set_trace()
         sigma2Sigmaw = (1.0/self.Eps.E1)*self.Alpha.E1[m]
 
                    
         setMinus = SP.int_(SP.hstack([list(range(M))[0:m],list(range(M))[m+1::]]))
-        SmTSk = SP.sum( SP.tile(self.S.E1[:,m:m+1],(1, M-1))*self.S.E1[:,setMinus], 0)
+        setMinus = setMinus[self.doUpdate[setMinus]==1]
+
+        SmTSk = SP.sum( SP.tile(self.S.E1[:,m:m+1],(1, Muse-1))*self.S.E1[:,setMinus], 0)
         SmTSm = SP.dot(self.S.E1[:,m].transpose(),self.S.E1[:,m]) + self.S.diagSigmaS[:,m].sum()
 
         b = SP.dot( (self.W.C[:, setMinus,0]*self.W.E1[:, setMinus]),(SmTSk.transpose()))                         
@@ -404,12 +408,12 @@ class CSparseFA(AExpressionModule):
         SmTSmSig = SmTSm + sigma2Sigmaw
         
         #update C and W 
-        #pdb.set_trace()
+        
         u_qm = logPi + 0.5*SP.log(sigma2Sigmaw) - 0.5*SP.log(SmTSmSig) + (0.5*self.Eps.E1)*((diff**2)/SmTSmSig)
         self.W.C[:, m,0] = 1./(1+SP.exp(-u_qm))
 
         self.W.C[:,m,1] = 1-self.W.C[:,m,0]
-        self.W.E1[:, m] = (diff/SmTSmSig)                                
+        self.W.E1[:, m] = (diff/SmTSmSig)                                #q(w_qm | s_qm=1), q=1,...,Q
         self.W.sigma2[:, m] = (1./self.Eps.E1)/SmTSmSig
         self.W.E2diag[:,m] = self.W.E1[:,m]**2 + self.W.sigma2[:,m] 
 
@@ -434,14 +438,18 @@ class CSparseFA(AExpressionModule):
     def updateEps(self):
         #update Eps (vertorised)
 
-        SW_sigma  = self.W.C[:,:,0]*self.W.E1
-        SW2_sigma  = self.W.C[:,:,0]*self.W.E2diag
+        #SW_sigma  = self.W.C[:,:,0]*self.W.E1
+        #SW2_sigma  = self.W.C[:,:,0]*self.W.E2diag
+
+        SW_sigma  = self.W.C[:,self.doUpdate==1,0]*self.W.E1[:,self.doUpdate==1]
+        SW2_sigma  = self.W.C[:,self.doUpdate==1,0]*self.W.E2diag[:,self.doUpdate==1]
                     
-        muSTmuS = SP.dot(self.S.E1.transpose(),self.S.E1)
+#        muSTmuS = SP.dot(self.S.E1.transpose(),self.S.E1)
+        muSTmuS = SP.dot(self.S.E1[:,self.doUpdate==1].transpose(),self.S.E1[:,self.doUpdate==1])
         muSTmuS0 = muSTmuS - SP.diag(SP.diag(muSTmuS))
 
-        t1 = SP.sum(SW_sigma*SP.dot(self.Z.E1.transpose(),self.S.E1), 1)
-        t2 = SP.sum(SW2_sigma*SP.tile(SP.diag(muSTmuS).T + self.Eps.diagSigmaS,(self._D,1)), 1) 
+        t1 = SP.sum(SW_sigma*SP.dot(self.Z.E1.transpose(),self.S.E1[:,self.doUpdate==1]), 1)
+        t2 = SP.sum(SW2_sigma*SP.tile(SP.diag(muSTmuS).T + self.Eps.diagSigmaS[self.doUpdate==1],(self._D,1)), 1) 
         t3 = SP.sum( SP.dot(SW_sigma,muSTmuS0)*SW_sigma, 1)
         #self.Eps.E1 = 1./((self.Eps.pb+0.5*(self.ZZ  + (-2*t1 + t2 + t3)))/(0.5*self._N+self.Eps.pa))
         self.Eps.E1 = 1./((0.5*(self.ZZ  + (-2*t1 + t2 + t3)))/(0.5*self._N))
@@ -453,14 +461,19 @@ class CSparseFA(AExpressionModule):
 
     def updateEpsDrop(self):
         #only consider expressed genes
-        SW_sigma  = self.W.C[:,:,0]*self.W.E1
-        SW2_sigma  = self.W.C[:,:,0]*self.W.E2diag
-        muSTmuS = self.S.E1*self.S.E1  + self.S.diagSigmaS
+        #SW_sigma  = self.W.C[:,:,0]*self.W.E1
+        #SW2_sigma  = self.W.C[:,:,0]*self.W.E2diag
+        #muSTmuS = self.S.E1*self.S.E1  + self.S.diagSigmaS
+        
+        SW_sigma  = self.W.C[:,self.doUpdate==1,0]*self.W.E1[:,self.doUpdate==1]
+        SW2_sigma  = self.W.C[:,self.doUpdate==1,0]*self.W.E2diag[:,self.doUpdate==1]
+                
+        muSTmuS = SP.dot(self.S.E1[:,self.doUpdate==1].transpose(),self.S.E1[:,self.doUpdate==1])        
         muSTmuS = SP.dot(muSTmuS.transpose(),self.isExpressed)
         t1 = SP.sum(SW_sigma*SP.dot(self.Z.E1.transpose(),self.S.E1), 1)
         t2 = SP.sum(SW2_sigma.transpose()* muSTmuS,0)
         t3 = SP.zeros((self._D,))
-        mRangeUse =  list(range(SW_sigma.shape[1]))#SP.where(self.doUpdate>=0)[0]
+        mRangeUse =  SP.where(self.doUpdate>=0)[0]   # list(range(SW_sigma.shape[1]))
         for m in range(len(mRangeUse)):
             for m1 in mRangeUse[m+1:]:
                 tt = ( (self.W.C[:, m1,0]*self.W.E1[:, m1])*SW_sigma[:, m])
@@ -474,7 +487,7 @@ class CSparseFA(AExpressionModule):
         self.Pi.a[:,m] = self.Pi.pa[:,m] + SP.sum(self.W.C[:,m,0])
         self.Pi.b[:,m] = self.Pi.pa[:,m] + self._D -  SP.sum(self.W.C[:,m,0])
         self.Pi.E1[:,m] = self.Pi.a[:,m]/(self.Pi.a[:,m]+self.Pi.b[:,m])
-        self.Pi.lnE1 = special.digamma(self.Pi.a) - special.digamma(self.Pi.a+self.Pi.b)
+        # self.Pi.lnE1 = special.digamma(self.Pi.a) - special.digamma(self.Pi.a+self.Pi.b)
 
     def update(self):
         """ Perform update of weights (with spike-and-slab prior), ARD parameters, factors, annd noise parameters. Called by `iterate` method.                                                          
@@ -488,13 +501,18 @@ class CSparseFA(AExpressionModule):
             mRange[self.nKnown:] = SP.random.permutation(mRange[self.nKnown:])
             mRange[self.nKnown:] = SP.random.permutation(mRange[self.nKnown:])
         for m in mRange:
-            self.updateW(m)
+            if self.doUpdate[m]==1:
+                if self.dropFactors==False or self.iterationCount <10 or (self.Alpha.E1[m]/self.S.E1[:,m].var())<1e10:
+                    self.updateW(m)
 
-            if self.learnPi==True:
-                if m in self.iLatent:#SP.hstack([self.iLatentSparse, self.iLatent]):
-                    self.updatePi(m)
-            self.updateAlphaW(m)
-            self.updateS(m) 
+                    if self.learnPi==True:
+                        if m in self.iLatentSparse:#SP.hstack([self.iLatentSparse, self.iLatent]):
+                            self.updatePi(m)
+                    self.updateAlpha(m)
+                    self.updateS(m) 
+                else:
+                    self.doUpdate[m]=0
+                    print('Switched off factor', self.terms[m], 'at iteration')
 
         if self.noise=='gauss':
             self.updateEps()
@@ -550,7 +568,8 @@ class CSparseFA(AExpressionModule):
         if init_data is not None:
             self.init(init_data)
 
-    def init(self,init_data,Pi=None,terms=None, noise='gauss', init_factors=None, unannotated_id = "hidden", covariates=None):
+    def init(self,init_data,Pi=None,terms=None, noise='gauss', init_factors=None,
+             unannotated_id = "hidden", covariates=None, dropFactors=True):
         #initialize the model instance"""
         #AGAussNode is defined in ExpresisonNet
         #expr Y ~ N(\mu= expr, \sigma = 0)
@@ -575,6 +594,9 @@ class CSparseFA(AExpressionModule):
             self.meanX = self.Z.E1.copy()
             self.isExpressed = (self.Z.E1>0)*1.
         self.numExpressed = SP.sum(self.Z.E1>0,0)
+
+        self.doUpdate = SP.ones((Pi.shape[1],)).astype("int")
+        self.dropFactors = dropFactors
         
         #known covariates
         if init_factors!=None and 'Known' in init_factors:
@@ -707,7 +729,10 @@ class CSparseFA(AExpressionModule):
                 k+=self.nKnown
                 if Ion[:,k].sum()>5:
                     #pdb.set_trace()
-                    pca = PCA(n_components=1, iterated_power=2,svd_solver='randomized')
+                    if self.S.E1.shape[0]<500:
+                        pca = PCA(n_components=1)
+                    else:
+                        pca = PCA(n_components=1, iterated_power=2, svd_solver='randomized')
                     s0 = pca.fit_transform(Zstd[:,Ion[:,k]])
                     self.S.E1[:,k] =(s0[:,0])
                     self.S.E1[:,k] =  self.S.E1[:,k]/self.S.E1[:,k].std()

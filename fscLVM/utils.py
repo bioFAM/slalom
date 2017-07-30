@@ -63,7 +63,7 @@ def saveFA(FA, out_name=None, saveF=False):
     out_file.create_dataset(name='terms',data=SP.array(FA.getTerms(),dtype='|S30'))
     out_file.create_dataset(name='idx_genes',data=FA.idx_genes.astype('int'))
     if not FA.gene_ids is None: 
-        out_file.create_dataset(name='gene_ids',data=FA.gene_ids,dtype='|S30')
+        out_file.create_dataset(name='gene_ids',data=FA.gene_ids.astype("S30"),dtype='|S30')
     if saveF==True:
         out_file.create_dataset(name='F',data=FA.getF())
     out_file.close()    
@@ -159,7 +159,7 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
         for i in range(len(uLab)):
             lList.append( mlines.Line2D([], [], color=cols[i], marker='.',
                               markersize=7, label=uLab[i], linewidth=0))     
-        plt.legend(handles=lList)
+        plt.legend(handles=lList,loc='center left', bbox_to_anchor=(1, 0.5))
     else:
         if len(lab)>0:
             plt.scatter(X1, X2, c=lab, s=20)
@@ -483,8 +483,8 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
     K = pi.shape[1]
 
     #data for sparseFA instance    
-    pi[pi>.8] =0.99#1-1e-100#0.9999
-    pi[pi<.2] =1e-8
+    pi[pi>.8] =1-1e-100 # 0.99#1-1e-100#0.9999
+    pi[pi<.2] =1e-100 #1e-8
     
 
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'covariates':covariates}
@@ -505,7 +505,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
         nFix = FA0.nKnown+FA0.nLatent
                         
 #Fit PCA        
-    pca = PCA(n_components=1,svd_solver='full')
+    pca = PCA(n_components=1)#,svd_solver='full')
     pca.fit(FA0.Z.E1)
     X = pca.transform(FA0.Z.E1)
 
@@ -529,7 +529,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
     FA = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
         nIterations=50,permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FA.shuffle=True
-    FA.nScale = 100
+    FA.nScale = 30
     FA.init(**init) 
     for j in range(50):
         FA.update()      
@@ -542,7 +542,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
     FArev = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
         nIterations=50,permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FArev.shuffle=True
-    FArev.nScale = 100
+    FArev.nScale = 30
     FArev.init(**init) 
 
     #FArev.iterate(forceIterations=True, nIterations=nIterations)
@@ -550,7 +550,8 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
         FArev.update() 
             
     #import pdb
-    IpiM = (-(0.5*(1./FArev.Alpha.E1[SP.argsort(mRangeRev)][nFix:])+.5*(1./FA.Alpha.E1[SP.argsort(mRange)][nFix:]))).argsort()    
+    IpiM = (-(0.5*(1./FArev.Alpha.E1[SP.argsort(mRangeRev)][nFix:])+.5*(1./FA.Alpha.E1[SP.argsort(mRange)][nFix:]))).argsort()  
+      
 
 #    IpiM = (-(0.5*(1./FArev.Alpha.E1[SP.argsort(mRangeRev)][nFix:]*FArev.S.E1[:,SP.argsort(mRangeRev)][:,nFix:].std(0))+.5*(1./FA.Alpha.E1[SP.argsort(mRange)][nFix:]*FA.S.E1[:,SP.argsort(mRange)][:,nFix:].std(0)))).argsort()    
     Ilabel = SP.hstack([SP.arange(nFix),IpiM+nFix])
@@ -802,7 +803,7 @@ def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGe
     
 
 def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
-            noise='gauss', minGenes=20, do_preTrain=True, nFix=None, priors=None, covariates=None):
+            noise='gauss', minGenes=20, do_preTrain=True, nFix=None, priors=None, covariates=None, dropFactors=True):
     """Initialise the f-scLVM factor analysis model.
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
@@ -831,6 +832,9 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
                                    should be set to `True` either if the 
                                    key objective is to rank factors or if the annotations cover all genes of interest.  
                                    Defaults to `True`.
+        dropFactors         (bool): drop factors from update schedule once they are shut off. In practice, factors that are switched off 
+                                   at some point during inference are usuallly not switched off. Allows faster inference. Defaults to `True`.
+                                   Currently only supported for the Gaussian noise model.                                  
         noise              (str): Specifies the observation noise model. Should be either `'gauss'`,`'hurdle'` or `'poisson'`.
                                  Defaults to `gauss`.                                      
         minGenes          (int): minimum number of genes required per term to retain it  
@@ -857,6 +861,9 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
     assert noise in ['gauss','hurdle','poisson'], 'invalid noise model'
     assert 0<FNR<1, 'FNR is required to be between 0 and 1'
     assert 0<FNR<1, 'FPR is required to be between 0 and 1'
+    if noise=="hurdle" and dropFactors==True:
+        dropFactors = False
+        print("dropFactors only supported for gauss noise model. Set to False.")
 
     #make sure the annotation is boolean
     I = (I>.5)     
@@ -941,7 +948,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
 
 
 
-    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'covariates':covariates}
+    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'covariates':covariates, "dropFactors":dropFactors}
     if not gene_ids is None:
         gene_ids = SP.array(gene_ids)
 
@@ -1013,3 +1020,6 @@ def smartGetDictHdf5(o):
             else:
                 RV[key] = o[key][:]
     return RV    
+
+
+

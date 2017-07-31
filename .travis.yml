@@ -17,7 +17,7 @@ matrix:
     language: generic
     env: TRAVIS_PYTHON_VERSION=2.7
 before_install:
-- wget https://raw.githubusercontent.com/Horta/travis-miniconda/master/install.sh
+- wget https://raw.githubusercontent.com/flophys/travis-miniconda/master/install.sh
   -O install.sh
 - chmod +x install.sh
 - travis_retry bash -x ./install.sh

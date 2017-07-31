@@ -61,9 +61,9 @@ def saveFA(FA, out_name=None, saveF=False):
     out_file.create_dataset(name='Z',data=FA.getZ())
     out_file.create_dataset(name='I',data=FA.getAnnotations())
     out_file.create_dataset(name='terms',data=SP.array(FA.getTerms(),dtype='|S30'))
-    out_file.create_dataset(name='idx_genes',data=FA.idx_genes)
+    out_file.create_dataset(name='idx_genes',data=FA.idx_genes.astype('int'))
     if not FA.gene_ids is None: 
-        out_file.create_dataset(name='gene_ids',data=FA.gene_ids)
+        out_file.create_dataset(name='gene_ids',data=FA.gene_ids,dtype='|S30')
     if saveF==True:
         out_file.create_dataset(name='F',data=FA.getF())
     out_file.close()    
@@ -448,7 +448,7 @@ def getIlabel(order, Y, terms, pi,init_factors=None):
         return Ilabel
         
 
-def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
+def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=None):
     """Pre-train the f-scLVM factor analysis model.
 
     Helper function to pre-train the f-scLVM factor analysis model to achieve 
@@ -466,9 +466,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
         noise              (str): Specifies the observation noise model. Should be either `'gauss'`,`'hurdle'` or `'poisson'`.
                                  Defaults to `gauss`.             
         nFix               (int): Number of terms which should be fixed and updated first. Defaults to `None`, 
-                                  resulting in the number of unannotated factors being updated first.                                                            
-                               
-
+                                  resulting in the number of unannotated factors being updated first.                                                                                           
     Returns:
         A vector containing the initial update order of the terms
     """
@@ -477,7 +475,10 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     init_params['noise'] = noise
     init_params['iLatent'] = SP.where(terms=='hidden')[0]    
     init_params['iLatentSparse'] = SP.array([])#SP.where(terms=='hiddenSparse')[0]    
-
+    if not (covariates is None):
+        init_params['Known'] = covariates
+    learnPi=False
+    
     pi = P_I.copy()
     K = pi.shape[1]
 
@@ -486,17 +487,19 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     pi[pi<.2] =1e-8
     
 
-    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
+    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'covariates':covariates}
     sigmaOff = 1E-3
     sparsity = 'VB'
 
     #prior on noise level 
-    priors = {'Eps': {'priors':[1E-3,1E-3]}}
+    if priors is None:
+        priors = {'Eps': {'priors':[1E-3,1E-3]}}
     #how to initialize network?
     #initType = 'pcaRand'
     terms0=terms
     pi0=pi.copy()
-    FA0 = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
+    FA0 = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,
+                            permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FA0.init(**init)
     if nFix==None:
         nFix = FA0.nKnown+FA0.nLatent
@@ -523,7 +526,8 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     pi = pi0[:,mRange]
     terms = terms0[mRange]     
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
-    FA = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
+    FA = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
+        nIterations=50,permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FA.shuffle=True
     FA.nScale = 100
     FA.init(**init) 
@@ -535,7 +539,8 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None):
     pi = pi0[:,mRangeRev]
     terms = terms0[mRangeRev]
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
-    FArev = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,permutation_move=False,priors=priors,initType='pcaRand')
+    FArev = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
+        nIterations=50,permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FArev.shuffle=True
     FArev.nScale = 100
     FArev.init(**init) 
@@ -581,89 +586,92 @@ def load_hdf5(dFile, anno='MSigDB'):
     return data
 
 
-def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=','):  
-    """Load input file for f-scLVM from txt files.
+# def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=',', verbose=True):  
+#     """Load input file for f-scLVM from txt files.
 
-    Loads an txt files and extracts all the inputs required by f-scLVM 
+#     Loads an txt files and extracts all the inputs required by f-scLVM 
 
-    Args:
-        dataFile (str): Strong containing the file name of the text file with the expression levels
-        dataFile_delimiter (str): delimiter for reading the data_file. Defaults to ','. 
-        annoFile (str): String containing the file name of the txt file containing the gene set annotations. Each line corresponds t 
-                        one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
-        annoDB (str)      : database file (MsigDB/REACTOME)                        
-        niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
-        dataFile_delimiter (str): Delimiter used in dataFile; defaults to ','.
+#     Args:
+#         dataFile (str): Strong containing the file name of the text file with the expression levels
+#         dataFile_delimiter (str): delimiter for reading the data_file. Defaults to ','. 
+#         annoFile (str): String containing the file name of the txt file containing the gene set annotations. Each line corresponds t 
+#                         one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
+#         annoDB (str)      : database file (MsigDB/REACTOME)                        
+#         niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
+#         dataFile_delimiter (str): Delimiter used in dataFile; defaults to ','.
+#         verbose     (bool): Print progresss?
 
 
-    Returns:
-        An dictionary containing all the inputs required by f-scLVM.
-    """    
+#     Returns:
+#         An dictionary containing all the inputs required by f-scLVM.
+#     """    
 
-    if not os.path.exists(annoFile):
-        raise Exception('annotation file (%s) not found' % annoFile)
+#     if not os.path.exists(annoFile):
+#         raise Exception('annotation file (%s) not found' % annoFile)
 
-    if not os.path.exists(dataFile):
-        raise Exception('data file file (%s) not found' % dataFile)
+#     if not os.path.exists(dataFile):
+#         raise Exception('data file file (%s) not found' % dataFile)
 
-    annoDB = annoDB.lower()
-    if not annoDB in ['msigdb','reactome']:
-        raise Exception('database (db) needs to be either msigdb or reactome')
+#     annoDB = annoDB.lower()
+#     if not annoDB in ['msigdb','reactome']:
+#         raise Exception('database (db) needs to be either msigdb or reactome')
 
-    with open(annoFile) as f:
-        content = [x.strip('\n') for x in f.readlines()]
+#     with open(annoFile) as f:
+#         content = [x.strip('\n') for x in f.readlines()]
    
-    #if annoDB=='msigdb':
-    #    content = [anno.split('\t') for anno in content]
-    #else:
-    #   content = [anno.split(' ') for anno in content]
-    #OS: I don't think the decision is needed. split does consider whit spaces and TAB. Is there a reason for this hard coded stuff?
-    content = [anno.split() for anno in content]
+#     #if annoDB=='msigdb':
+#     #    content = [anno.split('\t') for anno in content]
+#     #else:
+#     #   content = [anno.split(' ') for anno in content]
+#     #OS: I don't think the decision is needed. split does consider whit spaces and TAB. Is there a reason for this hard coded stuff?
+#     content = [anno.split() for anno in content]
 
-    terms = []
-    annotated_genes = []
-    for anno in content:
-        pdb.set_trace()
-        terms.append(anno[0])
-        if annoDB=='msigdb':
-            anno_lower = [gene.title() for gene in anno[2:]] 
-        else:
-            anno_lower = [gene.title() for gene in anno[1:]] 
+#     terms = []
+#     annotated_genes = []
+#     for anno in content:
+#         pdb.set_trace()
+#         terms.append(anno[0])
+#         if annoDB=='msigdb':
+#             anno_lower = [gene.title() for gene in anno[2:]] 
+#         else:
+#             anno_lower = [gene.title() for gene in anno[1:]] 
 
-        annotated_genes.append(anno_lower)  
+#         annotated_genes.append(anno_lower)  
 
-    #read data file
-    df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
+#     #read data file
+#     df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
+#     if verbose==True:
+#         print('Data file loaded')
     
-    I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=[ind.title() for ind in df.index], columns=terms)
+#     I = pd.DataFrame(SP.zeros((df.shape[0], len(terms))), index=[ind.title() for ind in df.index], columns=terms)
 
-    for i_anno in range(len(terms)):      
-        anno_expressed = list()
-        for g in annotated_genes[i_anno]:
-            if g in I.index:
-                anno_expressed.append(g)    
-        I.loc[anno_expressed,terms[i_anno]]=1.   
+#     for i_anno in range(len(terms)):      
+#         anno_expressed = list()
+#         for g in annotated_genes[i_anno]:
+#             if g in I.index:
+#                 anno_expressed.append(g)    
+#         I.loc[anno_expressed,terms[i_anno]]=1.   
 
-    if niceTerms==True:
-        if annoDB=='msigdb':
-            substring='HALLMARK_'
-        elif annoDB=='reactome':
-            substring='REACTOME_'
-        else:
-            substring=' '        
+#     if niceTerms==True:
+#         if annoDB=='msigdb':
+#             substring='HALLMARK_'
+#         elif annoDB=='reactome':
+#             substring='REACTOME_'
+#         else:
+#             substring=' '        
 
-        terms = [term[term.find(substring)+len(substring):30] for term in terms]
-        terms = [term.capitalize().replace('_',' ') for term in terms]
+#         terms = [term[term.find(substring)+len(substring):30] for term in terms]
+#         terms = [term.capitalize().replace('_',' ') for term in terms]
 
-    data_out = {}
-    data_out['terms'] = SP.array(terms)
-    data_out['Y'] = df.values.T
-    data_out['I'] = I.values
-    data_out['genes'] = list(df.index)
-    data_out['lab'] = df.columns
-    return data_out
+#     data_out = {}
+#     data_out['terms'] = SP.array(terms)
+#     data_out['Y'] = df.values.T
+#     data_out['I'] = I.values
+#     data_out['genes'] = list(df.index)
+#     data_out['lab'] = df.columns
+#     return data_out
 
-def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimiter=','):  
+def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimiter=',', verbose=True):  
     """Load input file for f-scLVM from txt files.
 
     Loads an txt files and extracts all the inputs required by f-scLVM 
@@ -706,7 +714,8 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
 
     #read data file
     df = pd.read_csv(dataFile, sep=dataFile_delimiter).T
-    
+    if verbose==True:
+        print('Data file loaded')    
     Ilist = list()
     termsList = list()
     i_file = 0
@@ -741,7 +750,9 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
             for g in annotated_genes[i_anno]:
                 if g in I.index:
                     anno_expressed.append(g)    
-            I.loc[anno_expressed,terms[i_anno]]=1.   
+            I.loc[anno_expressed,terms[i_anno]]=1.
+            if verbose==True  and SP.mod(i_anno,10)==0:
+                print('%i terms out of %i terms loaded for current annotation file' % (i_anno, len(terms)))
 
         if niceTerms[i_file]==True:
             if annoDB=='msigdb':
@@ -756,6 +767,8 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
         Ilist.append(I.values)
         termsList.append(terms)
         i_file+=1
+        if verbose==True:
+            print('Processed annotation file',annoFile)  
 
     data_out = {}
     data_out['terms'] = SP.hstack(termsList)
@@ -789,7 +802,7 @@ def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGe
     
 
 def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
-            noise='gauss', minGenes=20, do_preTrain=True, nFix=None):
+            noise='gauss', minGenes=20, do_preTrain=True, nFix=None, priors=None, covariates=None):
     """Initialise the f-scLVM factor analysis model.
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
@@ -824,7 +837,11 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
                                  Defaults to `20`.  
         do_preTrain      (bool): Boolean switch indicating whether pre-training should be used to establish the initial 
                                 update order. Can be set to `False` for very large datasets.
-                                Defaults to `True`                                                                 
+                                Defaults to `True` 
+        priors      (dict): Dictionary containing the hyperparameters of the priors for `Alpha`, `Eps` and Pi (`PiDense` and `PiSparse`). 
+                            Defaults to None; in this case default values are used.    
+        covariates  (array_like): Matrix with known covariates that are controlled for when fitting the model. Defaults to `None`.
+
 
     Returns:
         A :class:`fscLVM.CSparseFA` instance.
@@ -895,6 +912,17 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
     pi = SP.hstack([SP.ones((Y.shape[1],nHidden))*.99,pi])
     num_terms += nHidden
 
+    if not (covariates is None):
+        if len(covariates.shape)==1:
+            covariates = covariates[:,SP.newaxis]
+        nKnown=covariates.shape[1]
+        pi = SP.hstack([SP.ones((Y.shape[1],nKnown))*.99,pi])
+        num_terms += nKnown
+        tcovariates = SP.repeat('covariate',nKnown)
+        termsCovariates = ['%s%s' % t for t in zip(tcovariates, SP.arange(nKnown))]
+        terms = SP.hstack([termsCovariates,terms])            
+       
+
 
 
 #mean term for non-Gaussian noise models
@@ -904,7 +932,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
         num_terms += 1
 
     if do_preTrain==True:   
-        Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=nFix)
+        Ilabel = preTrain(Y, terms, pi, noise=noise, nFix=nFix, priors=priors, covariates=covariates)
         pi = pi[:,Ilabel]
         terms = terms[Ilabel]    
 
@@ -913,11 +941,12 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
 
 
 
-    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
+    init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'covariates':covariates}
     if not gene_ids is None:
         gene_ids = SP.array(gene_ids)
-    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids)   
-    FA.saveInit=True
+
+    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids, priors=priors)   
+    FA.saveInit=False
 
     FA.init(**init)  
 

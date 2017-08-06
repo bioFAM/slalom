@@ -803,7 +803,7 @@ def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGe
     
 
 def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
-            noise='gauss', minGenes=20, do_preTrain=True, nFix=None, priors=None, covariates=None, dropFactors=True):
+            noise='gauss', minGenes=20, do_preTrain=True, nFix=None, priors=None, covariates=None, dropFactors=True, learnPi=False):
     """Initialise the f-scLVM factor analysis model.
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
@@ -845,6 +845,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
         priors      (dict): Dictionary containing the hyperparameters of the priors for `Alpha`, `Eps` and Pi (`PiDense` and `PiSparse`). 
                             Defaults to None; in this case default values are used.    
         covariates  (array_like): Matrix with known covariates that are controlled for when fitting the model. Defaults to `None`.
+        learnPi          (bool): Learn sparsity of spearse hidden factors (default False)
 
 
     Returns:
@@ -890,6 +891,8 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
             gene_ids = SP.array(gene_ids)[idx_genes]
     else:
         idx_genes = SP.arange(Y.shape[1])        
+        if Y.shape[1]>10000:
+            print("For large datasets we recommend setting the pruneGenes option to True.")
 
 
     #center data for Gaussian observation noise
@@ -952,7 +955,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
     if not gene_ids is None:
         gene_ids = SP.array(gene_ids)
 
-    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids, priors=priors)   
+    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids, priors=priors, learnPi=learnPi)   
     FA.saveInit=False
 
     FA.init(**init)  

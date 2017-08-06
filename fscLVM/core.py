@@ -375,11 +375,13 @@ class CSparseFA(AExpressionModule):
             YmeanX = self.meanX
 
         if (m<self.nKnown) or (m in self.iLatentSparse) or (m in self.iLatent):
-            logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))                        
+            with SP.errstate(divide='ignore'):
+                logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))                        
             #logPi = (self.Pi.lnE1 - (special.digamma(self.Pi.b) - special.digamma(self.Pi.a+self.Pi.b)))[:,m]
 
         elif self.nScale>0 and self.nScale<YmeanX.shape[0]:
-            logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))   
+            with SP.errstate(divide='ignore'):
+                logPi = SP.log(self.Pi.E1[:,m]/(1-self.Pi.E1[:,m]))   
             #logPi = self.Pi.lnE1 - (special.digamma(self.Pi.b) - special.digamma(self.Pi.a+self.Pi.b))
             isOFF_ = self.Pi.E1[:,m]<.5        
             logPi[isOFF_] = (YmeanX.shape[0]/self.nScale)*SP.log(self.Pi.E1[isOFF_,m]/(1-self.Pi.E1[isOFF_,m]))   
@@ -410,7 +412,8 @@ class CSparseFA(AExpressionModule):
         #update C and W 
         
         u_qm = logPi + 0.5*SP.log(sigma2Sigmaw) - 0.5*SP.log(SmTSmSig) + (0.5*self.Eps.E1)*((diff**2)/SmTSmSig)
-        self.W.C[:, m,0] = 1./(1+SP.exp(-u_qm))
+        with SP.errstate(over='ignore'):
+            self.W.C[:, m,0] = 1./(1+SP.exp(-u_qm))
 
         self.W.C[:,m,1] = 1-self.W.C[:,m,0]
         self.W.E1[:, m] = (diff/SmTSmSig)                                #q(w_qm | s_qm=1), q=1,...,Q
@@ -512,7 +515,7 @@ class CSparseFA(AExpressionModule):
                     self.updateS(m) 
                 else:
                     self.doUpdate[m]=0
-                    print('Switched off factor', self.terms[m], 'at iteration')
+                    print('Switched off factor', self.terms[m])
 
         if self.noise=='gauss':
             self.updateEps()

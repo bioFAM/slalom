@@ -61,7 +61,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'fscLVM'
-copyright = u'2016, Florian Buettner and Oliver Stegle'
+copyright = u'2016-2017, Florian Buettner and Oliver Stegle'
 author = u'Florian Buettner'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -69,7 +69,7 @@ author = u'Florian Buettner'
 # built documents.
 #
 # The short X.Y version.
-__version__ = '1.0.0.dev2'
+__version__ = '1.0.0.dev10'
 version = __version__
 # The full version, including alpha/beta/rc tags.
 release = __version__

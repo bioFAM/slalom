@@ -27,7 +27,7 @@ For best results, we recommend the [ANACONDA](https://anaconda.org) python distr
 ## How to use f-scLVM?
 The current software version should be considered as beta. More extensive documentation, tutorials and examples will be available soon. 
 
-For an illustration of how f-scLVM can be applied to mESC data considered in Buettner et al. [1], we have prepared a notebook that can be viewed [interactively](http://nbviewer.ipython.org/github/pmbio/f-scLVM/blob/master/ipynb/f-scLVM.ipynb).
+For an illustration of how f-scLVM can be applied to mESC data considered in Buettner et al. [1], we have prepared a [notebook](http://nbviewer.ipython.org/github/pmbio/f-scLVM/blob/master/ipynb/f-scLVM.ipynb). Along with other notebooks, this illustrates example analyses/workflows with f-scLVM that you can read, download and adapt for your own analyses. These notebooks can be viewed and downloaded from [here](http://nbviewer.ipython.org/github/pmbio/f-scLVM/blob/master/ipynb/) or [here](https://github.com/PMBio/f-scLVM/tree/master/ipynb).
 
 Documentation of the code can be found [here](http://f-sclvm.readthedocs.io).
 ## References:

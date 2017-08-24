@@ -590,10 +590,10 @@ def load_hdf5(dFile, anno='MSigDB'):
 # def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=',', verbose=True):  
 #     """Load input file for f-scLVM from txt files.
 
-#     Loads an txt files and extracts all the inputs required by f-scLVM 
+#     Loads a txt files and extracts all the inputs required by f-scLVM 
 
 #     Args:
-#         dataFile (str): Strong containing the file name of the text file with the expression levels
+#         dataFile (str): String containing the file name of the text file with the expression levels
 #         dataFile_delimiter (str): delimiter for reading the data_file. Defaults to ','. 
 #         annoFile (str): String containing the file name of the txt file containing the gene set annotations. Each line corresponds t 
 #                         one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
@@ -681,10 +681,11 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
         dataFile (str): Strong containing the file name of the text file with the expression levels
         dataFile_delimiter (str): delimiter for reading the data_file. Defaults to ','. 
         annoFiles (str, list): Either string containing the file name of the txt file with the gene set annotations or a list containing several anotation files. Each line in 
-                               in an annotattion file correspondsto one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
+                               in an annotattion file corresponds one gene set; a line starts with the name of the gene set and is followed by the annotated genes. 
         annoDBs (str, list)      : database file (MsigDB/REACTOME). If several annotation files are provided this hast to be a list of the same length.                        
         niceTerms    (bool): Indicates whether to nice terms (omit prefix, capitalize, shorten). Defaults to true.
         dataFile_delimiter (str): Delimiter used in dataFile; defaults to ','.
+        verbose (bool): Show progress on loading terms (defaults to True).
 
 
     Returns:
@@ -752,7 +753,7 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
                 if g in I.index:
                     anno_expressed.append(g)    
             I.loc[anno_expressed,terms[i_anno]]=1.
-            if verbose==True  and SP.mod(i_anno,10)==0:
+            if verbose==True  and SP.mod(i_anno,50)==0:
                 print('%i terms out of %i terms loaded for current annotation file' % (i_anno, len(terms)))
 
         if niceTerms[i_file]==True:
@@ -808,7 +809,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
     variable genes in log-space, second a vector `terms` contaning the names of all annotated gene set (correspondig to annotated factors) 
-    and third, a binary inidcator matrix `I` linking `G` genes to `K` terms by indicating which genes are annotated to each factor. 
+    and third, a binary indicator matrix `I` linking `G` genes to `K` terms by indicating which genes are annotated to each factor. 
     A variety of options can be specified as described below. 
 
     Args:
@@ -817,7 +818,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
                                  Dimension (:math:`N\\times G`).
         terms    (vector_like): Names of `K` annotated gene sets. Dimension
                                  (:math:`K\\times 0`).
-        I           (array_like): Inidicator matirx specifying
+        I           (array_like): Indicator matrix specifying
                                  whether a gene is annotated to a specific factor.
                                  Dimension (:math:`G\\times K`).
         gene_ids   (array_like): Gene identifiers (opitonal, defaults to None)

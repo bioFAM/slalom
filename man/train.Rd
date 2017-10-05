@@ -4,6 +4,7 @@
 \name{train}
 \alias{train}
 \alias{train,Rcpp_SlalomModel-method}
+\alias{train}
 \title{Train a SlalomModel object}
 \usage{
 train(object, ...)
@@ -39,10 +40,8 @@ genesets <- GSEABase::getGmt(gmtfile)
 data("mesc")
 model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
 model <- init(model)
-model <- train(model, nIterations = 1000)
-model <- train(model)
+model <- train(model, nIterations = 10)
 }
 \author{
 Davis McCarthy
 }
-

@@ -6,7 +6,7 @@
 #' models with data and results stored in a \code{"SlalomModel"} object. This
 #' function builds a new \code{"SlalomModel"} object from minimal inputs.
 #'
-#' @param object \code{"SCESet"} object N x G expression data matrix (cells x genes)
+#' @param object \code{"SingleCellExperiment"} object N x G expression data matrix (cells x genes)
 #' @param genesets a \code{"GeneSetCollection"} object containing annotated
 #' gene sets
 #' @param n_hidden number of hidden factors to fit in the model (2-5 recommended)
@@ -23,7 +23,8 @@
 #' This function builds and returns the object, checking for validity, which
 #' includes checking that the input data is of consistent dimensions.
 #'
-#' @import GSEABase
+#' @importFrom GSEABase geneIds
+#' @importFrom GSEABase getGmt
 #' @import scater
 #' @import Rcpp
 #' @import RcppArmadillo
@@ -32,6 +33,7 @@
 #' @importFrom methods validObject
 #' @importFrom Rcpp evalCpp
 #' @useDynLib slalom
+#' @aliases Rcpp_SlalomModel
 #' @export
 #'
 #' @examples
@@ -42,14 +44,19 @@
 #'
 #' exprsfile <- system.file("extdata", "mesc.csv", package = "slalom")
 #' mesc_mat <- as.matrix(read.csv(exprsfile))
-#' sce <- scater::newSCESet(exprsData = mesc_mat, logExprsOffset = 1,
-#'                  lowerDetectionLimit = 0)
+#' sce <- SingleCellExperiment::SingleCellExperiment(assays = list(logcounts = mesc_mat))
 #' # model2 <- newSlalomModel(mesc_mat, genesets, n_hidden = 5, min_genes = 10)
 #'
 newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
                            min_genes = 15, design = NULL) {
-    n_known <- ifelse(is.null(design), 0, ncol(design))
-    Y <- t(Biobase::exprs(object))
+
+    if (!is(object, "SingleCellExperiment"))
+        stop("object must be a SingleCellExperiment")
+    Y <- t(object@assays$data$logcounts)
+    if (is.null(rownames(object)))
+        stop("rownames(object) is NULL: expecting gene identifiers as rownames")
+    if (is.null(colnames(Y)))
+        colnames(Y) <- rownames(object)
     ## convert GeneSetCollection into I matrix of indicators
     I <- lapply(genesets, function(x) {colnames(Y) %in% GSEABase::geneIds(x)})
     names(I) <- names(genesets)
@@ -77,16 +84,27 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
     ## create new SlalomModel object for output
     ## set some attributes that we need frequently for the updates, inculuding
     ## number and idx of hidden (unannotated) terms
+    out <- .newSlalom(Y[, retained_genes], I * 1L, n_hidden, design)
+
+    ## Check validity of object
+    #validObject(out)
+    out
+}
+
+
+.newSlalom <- function(Y, I, n_hidden, design = NULL) {
+    n_known <- ifelse(is.null(design), 0, ncol(design))
     slalom_module <- Rcpp::Module("SlalomModel", PACKAGE = "slalom")
     out <- new(slalom_module$SlalomModel,
-               Y_init = Y[, retained_genes],
-               pi_init = I * 1L,
+               Y_init = Y,
+               pi_init = I,
                X_init = matrix(0, nrow = nrow(Y), ncol(I)),
                W_init = matrix(0, nrow = ncol(Y), ncol(I)),
                prior_alpha = c(1e-03, 1e-03),
                prior_epsilon = c(1e-03, 1e-03)
     )
     ## add more data to the object
+    out$Z_E1 <- out$X_E1 %*% t(out$W_E1 * (1L * I))
     out$iUnannotatedDense <- seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
     out$nAnnotated <- ncol(I) - n_hidden
     out$nHidden <- n_hidden
@@ -100,9 +118,6 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
             out$Known <- design
         }
     }
-
-    ## Check validity of object
-    #validObject(out)
     out
 }
 
@@ -122,29 +137,55 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 #     cellNames = scater::cellNames(object),
 #     iUnannotatedDense = seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
 # )
-# if (!is.null(design)) {
-#     if (nrow(design) != out@N)
-#         stop("Number of rows of design does not match number of cells.")
-#     else
-#         out@Known <- design
-# }
-
-# genevars <- matrixStats::colVars(mesc)
-# keepgene <- genevars > sort(genevars)[3000]
-# sceset <- newSCESet(exprsData = t(mesc[, keepgene]))
-# mesc <- sceset
-# save(mesc, file = "../../data/mesc.RData")
-# object <- mesc
-#
-# gl <- lapply(g, function(x) {geneIds(x) <- capwords(geneIds(x), strict = TRUE); x})
-# gl <- GeneSetCollection(gl)
-# gsmall <- gl[grep("CELL", names(gl))]
-# toGmt(gsmall, con = "reactome_subset.gmt")
-# genesets <- gsmall
 
 
 ################################################################################
 ### Initialize a SlalomModel class object
+
+#' #' Initialize a SlalomModel object
+#' #'
+#' #' Initialize a SlalomModel with sensible starting values for parameters before
+#' #' training the model.
+#' #'
+#' #' @param object a \code{Rcpp_SlalomModel} object
+#' #' @param alpha_priors numeric(2) giving alpha and beta hyperparameters for a
+#' #' gamma prior distribution for alpha parameters (precision of factor weights)
+#' #' @param epsilon_priors numeric(2) giving alpha and beta hyperparameters for a
+#' #' gamma prior distribution for noise precision parameters
+#' #' @param noise_model character(1) defining noise model, defaults to "gauss" for
+#' #' Gaussian noise model
+#' #' @param seed integer(1) value supplying a random seed to make results
+#' #' reproducible
+#' #' @param ... generic arguments passed to \code{Rcpp_SlalomModel} method
+#' #'
+#' #' @details It is strongly recommended to use \code{\link{newSlalomModel}} to
+#' #' create the \code{\link{SlalomModel}} object prior to applying
+#' #' \code{initialize}.
+#' #'
+#' #' @docType methods
+#' #' @name init
+#' #' @rdname init
+#' #' @aliases init init,Rcpp_SlalomModel-method
+#' #'
+#' #' @author Davis McCarthy
+#' #' @importFrom rsvd rpca
+#' #' @importFrom stats runif
+#' #' @importFrom stats rnorm
+#' #' @export
+#' #' @examples
+#' #' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+#' #' genesets <- GSEABase::getGmt(gmtfile)
+#' #' data("mesc")
+#' #' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+#' #' model <- init(model)
+#' ## setGeneric("init", function(object, ...) standardGeneric("init"))
+#'
+#' #' @name init
+#' #' @rdname init
+#' #' @docType methods
+#' #' #@export
+#' ## setMethod("init", "Rcpp_SlalomModel", function(
+
 
 #' Initialize a SlalomModel object
 #'
@@ -156,18 +197,19 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 #' gamma prior distribution for alpha parameters (precision of factor weights)
 #' @param epsilon_priors numeric(2) giving alpha and beta hyperparameters for a
 #' gamma prior distribution for noise precision parameters
-#' @param noise character(1) defining noise model, defaults to "gauss" for
+#' @param noise_model character(1) defining noise model, defaults to "gauss" for
 #' Gaussian noise model
-#' @param ... generic arguments passed to \code{Rcpp_SlalomModel} method
+#' @param seed integer(1) value supplying a random seed to make results
+#' reproducible
+#' @param pi_prior numeric matrix (genes x factors) giving prior probability of
+#' a gene being active for a factor
 #'
 #' @details It is strongly recommended to use \code{\link{newSlalomModel}} to
 #' create the \code{\link{SlalomModel}} object prior to applying
 #' \code{initialize}.
 #'
-#' @docType methods
 #' @name init
 #' @rdname init
-#' @aliases init init,Rcpp_SlalomModel-method
 #'
 #' @author Davis McCarthy
 #' @importFrom rsvd rpca
@@ -180,14 +222,17 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 #' data("mesc")
 #' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
 #' model <- init(model)
-setGeneric("init", function(object, ...) standardGeneric("init"))
-
-#' @name init
-#' @rdname init
-#' @docType methods
-#' @export
-setMethod("init", "Rcpp_SlalomModel", function(
-    object, alpha_priors = NULL, epsilon_priors = NULL,  noise_model = "gauss") {
+init <- function(
+    object, alpha_priors = NULL, epsilon_priors = NULL,  noise_model = "gauss",
+    seed = NULL, pi_prior = NULL, n_hidden = NULL, design = NULL,
+    dropFactors = TRUE) {
+    ## if Pi priors are supplied, need to redefine object
+    if (!is.null(pi_prior)) {
+        if (is.null(n_hidden))
+            stop("If pi_prior is supplied, n_hidden must be provided.
+                 First n_hidden columns of pi_prior are understood as hidden factors. ")
+        object <- .newSlalom(object$Y, pi_prior, n_hidden, design)
+    }
     ## define noise model
     noise_model <- match.arg(noise_model, c("gauss")) ## future: support "hurdle", "poisson"
     object$noiseModel <- noise_model
@@ -212,35 +257,38 @@ setMethod("init", "Rcpp_SlalomModel", function(
     ## pi is likelihood of link for genes x factors, defined in object from
     ## annotated gene sets with newSlalomModel
     ## define the number of genes that are "on" for each factor
-    object$nOn <- colSums(object$pi > 0.5)
+    object$nOn <- colSums(object$Pi_E1 > 0.5)
 
     ## define initial expected values for indicator variables Z with observed
     ## annotations
     object$Z_E1 <- object$Y
-    tmp <- object$pi
+    tmp <- object$Pi_E1
     tmp[tmp < 0.2] <- 0.01
+    tmp[tmp > 0.99] <- 0.99
     object$Z_init <- tmp
 
     ## bits and bobs
     object$onF <- object$nScale # object@nScale
+    object$dropFactors <- dropFactors
     # object@isExpressed <- (object@Z[["E1"]] > 0) * 1.0
     # object@numExpressed <- colSums(object@Z[["E1"]] > 0)
 
     ## initialize parameters using random PCA method
-    object <- .initializePCARand_Rcpp(object)
+    object <- .initializePCARand_Rcpp(object, seed = seed, saveInit = TRUE)
     ## check validity of object and return
     # validObject(object)
     object
-})
+}
 
 
 .initializePCARand_Rcpp <- function(object, seed = 222, saveInit = FALSE) {
-    set.seed(seed)
+    if (!is.null(seed))
+        set.seed(seed)
     # Zstd <- object$Z[["E1"]]
     ## initialize some objects
     Ystd <- object$Y
-    unif_vars <- stats::runif(nrow(object$pi) * ncol(object$pi))
-    Ion <- matrix(unif_vars, nrow = nrow(object$pi)) < object$Z_init
+    unif_vars <- stats::runif(nrow(object$Pi_E1) * ncol(object$Pi_E1))
+    Ion <- matrix(unif_vars, nrow = nrow(object$Pi_E1)) < object$Z_init
     object$X_E1 <- matrix(nrow = object$N, ncol = object$K)
     object$X_diagSigmaS <- matrix(1.0 / 2, nrow = object$N, ncol = object$K)
     object$W_E1 <- matrix(nrow = object$G, ncol = object$K)
@@ -317,8 +365,7 @@ setMethod("init", "Rcpp_SlalomModel", function(
 #' data("mesc")
 #' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
 #' model <- init(model)
-#' model <- train(model, nIterations = 1000)
-#' model <- train(model)
+#' model <- train(model, nIterations = 10)
 setGeneric("train", function(object, ...) standardGeneric("train"))
 
 #' @name train
@@ -331,6 +378,7 @@ setMethod("train", "Rcpp_SlalomModel", function(
     ## define training parameters in object
     object$tolerance <- tolerance
     object$nIterations <- nIterations
+    object$minIterations <- minIterations
     object$forceIterations <- forceIterations
     object$shuffle <- TRUE ## shuffle order in which factors are updated each
     ## for each training iteration
@@ -342,65 +390,95 @@ setMethod("train", "Rcpp_SlalomModel", function(
 })
 
 
+#' Update a SlalomModel object
+#'
+#' Do one variational update of a SlalomModel to infer model parameters.
+#'
+#' @param object a \code{Rcpp_SlalomModel} object
+#'
+#' @details Update the model with one iteration using variational Bayes methods
+#' to infer parameters.
+#'
+#' @name updateSlalom
+#' @rdname updateSlalom
+#'
+#' @author Davis McCarthy
+#' @export
+#' @examples
+#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+#' genesets <- GSEABase::getGmt(gmtfile)
+#' data("mesc")
+#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+#' model <- init(model)
+updateSlalom <- function(object) {
+    if (!is(object, "Rcpp_SlalomModel"))
+        stop("object must be of class Rcpp_SlalomModel")
+    ## train model
+    object$update()
+    ## return object
+    object
+}
+
+
 ################################################################################
 ### Define validity check for SlalomModel class object
-
-setValidity("SlalomModel", function(object) {
-    msg <- NULL
-    valid <- TRUE
-
-    if ( is.null(object@Y) ) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "object must contain an expression matrix at object@Y")
-    }
-    if ( any(is.na(object@Y)) ) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Expression matrix Y cannot contain NA values")
-    }
-    if ( any(is.na(object@pi)) ) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Matrix pi of observed gene set annotations cannot contain NA values")
-    }
-    if ( (ncol(object@Y) != object@G)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of genes in expression matrix Y must match object@G")
-    }
-    if ( (nrow(object@Y) != object@N)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of cells in expression matrix Y must match object@N")
-    }
-    if ( (ncol(object@pi) != object@K)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of factors in matrix pi must match object@K")
-    }
-    if ( (nrow(object@pi) != object@G)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of factors in matrix pi must match object@G")
-    }
-    if ( (length(object@termNames) != object@K)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of factors termNames must match object@K")
-    }
-    if ( (length(object@geneNames) != object@G)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of geneNames must match object@G")
-    }
-    if ( (length(object@cellNames) != object@N)) {
-        valid <- FALSE
-        msg <- c(msg,
-                 "Number of cellNames must match object@N")
-    }
-
-
-    if (valid) TRUE else msg
-})
-
+#
+# setValidity("Rcpp_SlalomModel", function(object) {
+#     msg <- NULL
+#     valid <- TRUE
+#
+#     if ( is.null(object@Y) ) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "object must contain an expression matrix at object@Y")
+#     }
+#     if ( any(is.na(object@Y)) ) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Expression matrix Y cannot contain NA values")
+#     }
+#     if ( any(is.na(object@Pi_E1)) ) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Matrix Pi of observed gene set annotations cannot contain NA values")
+#     }
+#     if ( (ncol(object@Y) != object@G)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of genes in expression matrix Y must match object@G")
+#     }
+#     if ( (nrow(object@Y) != object@N)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of cells in expression matrix Y must match object@N")
+#     }
+#     if ( (ncol(object@Pi_E1) != object@K)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of factors in matrix pi must match object@K")
+#     }
+#     if ( (nrow(object@Pi_E1) != object@G)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of factors in matrix pi must match object@G")
+#     }
+#     if ( (length(object@termNames) != object@K)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of factors termNames must match object@K")
+#     }
+#     if ( (length(object@geneNames) != object@G)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of geneNames must match object@G")
+#     }
+#     if ( (length(object@cellNames) != object@N)) {
+#         valid <- FALSE
+#         msg <- c(msg,
+#                  "Number of cellNames must match object@N")
+#     }
+#
+#
+#     if (valid) TRUE else msg
+# })
+#

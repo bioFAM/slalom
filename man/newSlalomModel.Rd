@@ -2,13 +2,14 @@
 % Please edit documentation in R/SlalomModel-methods.R
 \name{newSlalomModel}
 \alias{newSlalomModel}
+\alias{Rcpp_SlalomModel}
 \title{Create a new SlalomModel object.}
 \usage{
 newSlalomModel(object, genesets, n_hidden = 5, prune_genes = TRUE,
   min_genes = 15, design = NULL)
 }
 \arguments{
-\item{object}{\code{"SCESet"} object N x G expression data matrix (cells x genes)}
+\item{object}{\code{"SingleCellExperiment"} object N x G expression data matrix (cells x genes)}
 
 \item{genesets}{a \code{"GeneSetCollection"} object containing annotated
 gene sets}
@@ -44,9 +45,7 @@ model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
 
 exprsfile <- system.file("extdata", "mesc.csv", package = "slalom")
 mesc_mat <- as.matrix(read.csv(exprsfile))
-sce <- scater::newSCESet(exprsData = mesc_mat, logExprsOffset = 1,
-                 lowerDetectionLimit = 0)
+sce <- SingleCellExperiment::SingleCellExperiment(assays = list(logcounts = mesc_mat))
 # model2 <- newSlalomModel(mesc_mat, genesets, n_hidden = 5, min_genes = 10)
 
 }
-

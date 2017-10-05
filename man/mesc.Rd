@@ -21,10 +21,9 @@ with log2-counts-per-million expression values for 3635 genes for 182 cells.
 They are from a real experiment, studying cell cycle in mouse embryonic stem
 cells (mESCs). See Buettner et al (Nat. Biotech., 2015) for details. d.
 }
-\author{
-Davis McCarthy, Florian Buettner, 2016-12-02
-}
 \references{
 Buettner F, Natarajan KN, Paolo Casale F, Proserpio V, Scialdone A, Theis FJ, et al. Computational analysis of cell-to-cell heterogeneity in single-cell RNA-sequencing data reveals hidden subpopulations of cells. Nat Biotechnol. Nature Publishing Group; 2015;33: 155–160.
 }
-
+\author{
+Davis McCarthy, Florian Buettner, 2016-12-02
+}

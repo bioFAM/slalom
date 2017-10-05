@@ -268,7 +268,7 @@ init <- function(
     object$Z_init <- tmp
 
     ## bits and bobs
-    object$onF <- object$nScale # object@nScale
+    object$onF <- 1 / object$nScale # object@nScale
     object$dropFactors <- dropFactors
     # object@isExpressed <- (object@Z[["E1"]] > 0) * 1.0
     # object@numExpressed <- colSums(object@Z[["E1"]] > 0)

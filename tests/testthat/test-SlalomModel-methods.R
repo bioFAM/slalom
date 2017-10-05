@@ -100,16 +100,41 @@ test_that("SlalomModel trains", {
     dim(h5read(h5file2, "I"))
     h5read(h5file2, "I")[1:10, 1:7]
 
-    m1 <- newSlalomModel(sce, genesets[1:20], n_hidden = 2, min_genes = 1)
-    m1 <- init(m1, pi_prior = h5read(h5file2, "Pi_inferred")[1,,], n_hidden = 2)
-    m1$X_E1 <- h5read(h5file2, "X")[1,,]
-    m1$W_E1 <- h5read(h5file2, "W")[1,,]
-    m1$alpha_E1 <- h5read(h5file2, "Alpha")[1,]
+    sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(logcounts = h5read(h5file2, "Y"))
+    )
+    rownames(sce) <- unique(unlist(GSEABase::geneIds(genesets[1:20])))[1:500]
+    m1 <- newSlalomModel(sce, genesets[1:19], n_hidden = 2, min_genes = 1)
+    pp <-  t(h5read(h5file2, "Pi_inferred")[,,1])
+    pp[pp > 0.99] <- 0.999
+    pp[pp < 0.01] <- 0.001
+    m1 <- init(m1, pi_prior = pp, n_hidden = 2)
+    m1$onF <- 1 / m1$nScale
+    m1$X_E1 <- t(h5read(h5file2, "X")[,,1])
+    m1$W_E1 <- t(h5read(h5file2, "W")[,,1])
+    m1$alpha_E1 <- h5read(h5file2, "Alpha")[,1]
+    m1$epsilon_E1 <- h5read(h5file2, "tau")[,1]
     m1 <- slalom:::updateSlalom(m1)
-    expect_equal(m1$Pi_E1, h5read(h5file2, "Pi_inferred")[1,,])
-    expect_equal(m1$X_E1, h5read(h5file2, "X")[2,,])
+    expect_equal(m1$Pi_E1, pp)
+    expect_equal(m1$W_E1, t(h5read(h5file2, "W")[,,2]))
+    expect_equal(m1$X_E1, t(h5read(h5file2, "X")[,,2]))
+    expect_equal(m1$X_E1, t(h5read(h5file2, "X")[,,2]))
+    expect_equal(m1$epsilon_E1, h5read(h5file2, "tau")[,2])
+
     View(m1$X_E1)
-    expect_equal(m1$W_E1, h5read(h5file2, "W")[2,,])
+
+
+    m2 <- newSlalomModel(sce, genesets[1:19], n_hidden = 2, min_genes = 1)
+    pp <-  t(h5read(h5file2, "Pi_inferred")[,,1])
+    pp[pp > 0.99] <- 0.999
+    pp[pp < 0.01] <- 0.001
+    m2 <- init(m2, pi_prior = pp, n_hidden = 2)
+    m2$onF <- 1 / m2$nScale
+    m2$X_E1 <- t(h5read(h5file2, "X")[,,1])
+    m2$W_E1 <- t(h5read(h5file2, "W")[,,1])
+    m2$alpha_E1 <- h5read(h5file2, "Alpha")[,1]
+    m2$epsilon_E1 <- h5read(h5file2, "tau")[,1]
+    m2 <- train(m2, nIterations = 10)
 
     mem_change(m1 <- train(m1, nIterations = 800))
     plot(m1$W_E1, h5read(h5file2, "W")[21,,])

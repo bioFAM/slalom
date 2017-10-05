@@ -266,7 +266,7 @@ void SlalomModel::update(void) {
 
     */
     this->epsilon_diagSigmaS = arma::zeros(this->K);
-    arma::umat Ion = (this->W_gamma0 > .5);
+    // arma::umat Ion = (this->W_gamma0 > .5);
     // check above: set parameter to zero with every update?
     arma::uvec kRange = arma::regspace<arma::uvec>(0,  (this->K - 1));
     if (this->shuffle == true && this->iterationCount > 0) {
@@ -367,12 +367,15 @@ void SlalomModel::updateX(const int k) {
     setMinus = setMinus(this->doUpdate(setMinus));
     arma::vec SW_sigma;
     arma::vec SW2_sigma;
+
     SW2_sigma = ((this->W_gamma0.col(k) % this->W_E2diag.col(k)) %
                      this->epsilon_E1);
     double alphaSm = arma::sum(SW2_sigma);
+
     for (int i = 0; i < this->N; i++) {
         this->X_diagSigmaS(i, k) = 1.0 / (1.0 + alphaSm);
     }
+
     if (k >= this->nKnown) {
         SW_sigma = (this->W_gamma0.col(k) %
                         this->W_E1.col(k)) % this->epsilon_E1;     // Gx1 vec
@@ -400,15 +403,17 @@ void SlalomModel::updateW(const int k) {
     if (k < this->nKnown || arma::any(this->iUnannotatedSparse == k) ||
         arma::any(this->iUnannotatedDense == k)) {
         logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
+        // careful of divide-by-zero errors here
     } else if (this->nScale > 0 && this->nScale < this->N) {
         logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
+        // careful of divide-by-zero errors here
         arma::uvec isOFF_ = arma::find(this->Pi_E1.col(k) < 0.5);
         arma::uvec kvec(1);
         kvec(0) = k;
         logPi(isOFF_) = ((this->N / this->nScale) *
                              arma::log(this->Pi_E1(isOFF_, kvec) /
                              (1 - this->Pi_E1(isOFF_, kvec))));
-
+        // careful of divide-by-zero errors here
         arma::uvec isON_ = arma::find(this->Pi_E1.col(k) > 0.5);
         if (this->onF > 1.0) {
             logPi(isON_) = this->onF * arma::log(

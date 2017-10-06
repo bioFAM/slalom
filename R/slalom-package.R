@@ -6,6 +6,8 @@
 #' @name slalom
 #' @title Factorial single-cell latent variable models
 #'
+#' @import SingleCellExperiment
+#' @import BH
 #' @author Davis McCarthy
 #' @useDynLib slalom
 NULL

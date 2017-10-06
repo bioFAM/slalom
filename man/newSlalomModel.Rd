@@ -2,11 +2,10 @@
 % Please edit documentation in R/SlalomModel-methods.R
 \name{newSlalomModel}
 \alias{newSlalomModel}
-\alias{Rcpp_SlalomModel}
 \title{Create a new SlalomModel object.}
 \usage{
 newSlalomModel(object, genesets, n_hidden = 5, prune_genes = TRUE,
-  min_genes = 15, design = NULL)
+  min_genes = 15, design = NULL, anno_fpr = 0.01, anno_fnr = 0.001)
 }
 \arguments{
 \item{object}{\code{"SingleCellExperiment"} object N x G expression data matrix (cells x genes)}
@@ -24,9 +23,15 @@ a gene set for analysis}
 
 \item{design}{numeric design matrix providing values for covariates to fit in
 the model (rows represent cells)}
+
+\item{anno_fpr}{numeric(1), false positive rate (FPR) for assigning genes to
+factors (pathways); default is 0.01}
+
+\item{anno_fnr}{numeric(1), false negative rate (FNR) for assigning genes to
+factors (pathways); default is 0.001}
 }
 \value{
-a new SlalomModel object
+a new Rcpp_SlalomModel object
 }
 \description{
 Slalom fits relatively complicated hierarchical Bayesian factor analysis

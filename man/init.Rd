@@ -42,7 +42,7 @@
 \usage{
 init(object, alpha_priors = NULL, epsilon_priors = NULL,
   noise_model = "gauss", seed = NULL, pi_prior = NULL, n_hidden = NULL,
-  design = NULL, dropFactors = TRUE)
+  design = NULL, drop_factors = TRUE)
 }
 \arguments{
 \item{object}{a \code{Rcpp_SlalomModel} object}
@@ -61,6 +61,18 @@ reproducible}
 
 \item{pi_prior}{numeric matrix (genes x factors) giving prior probability of
 a gene being active for a factor}
+
+\item{n_hidden}{integer(1), number of hidden factors in model. Required if
+\code{pi_prior} is not \code{NULL}.}
+
+\item{design}{design matrix of covariates/factors to fit as known factors
+in the model.}
+
+\item{drop_factors}{logical(1), should factors be dropped from the model if
+the model determines them not to be relevant? Default is \code{TRUE}.}
+}
+\value{
+an `Rcpp_SlalomModel` object
 }
 \description{
 #' @name init

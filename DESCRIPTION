@@ -1,23 +1,23 @@
 Package: slalom
 Type: Package
 Title: Factorial Latent Variable Modeling of Single-Cell RNA-Seq Data
-Version: 0.1.5
+Version: 0.99.0
 Date: 2017-10-06
 Author: Florian Buettner
-Maintainer: Florian Buettner <buettner@ebi.ac.uk>
+Maintainer: Davis McCarthy <davis@ebi.ac.uk>
 Authors@R: c(person("Florian", "Buettner", role=c("aut", "cre"),
-        email="buettner@ebi.ac.uk"), person("Davis", "McCarthy",
-        role=c("aut"), email="davis@ebi.ac.uk"), person("Naruemon",
-        "Pratanwanich", role=c("aut"),
-        email="np394@ebi.ac.uk"), person("Oliver", "Stegle", role = c("aut"), 
-        email="stegle@ebi.ac.uk"))
+        email="buettner@ebi.ac.uk"), person("Naruemon",
+        "Pratanwanich", role=c("aut"), email="np394@ebi.ac.uk"), 
+        person("Davis", "McCarthy", role=c("aut"), email="davis@ebi.ac.uk"),  
+        person("John", "Marioni", role = c("aut"), email="marioni@ebi.ac.uk"), 
+        person("Oliver", "Stegle", role = c("aut"), email="stegle@ebi.ac.uk"))
 Description: slalom is a scalable modelling framework for single-cell RNA-seq 
         data that uses gene set annotations to dissect single-cell transcriptome
         heterogeneity, thereby allowing to identify biological drivers of 
         cell-to-cell variability and model confounding factors.
-Depends: R (>= 3.3)
-Imports: Rcpp (>= 0.12.8), RcppArmadillo, Biobase, BH, GSEABase, methods, rsvd, 
-            scater, SingleCellExperiment
+Depends: R (>= 3.4)
+Imports: Rcpp (>= 0.12.8), RcppArmadillo, BH, GSEABase, methods, rsvd, 
+            SingleCellExperiment, stats
 Suggests: knitr, rhdf5, testthat
 LinkingTo: Rcpp, RcppArmadillo, BH
 License: GPL (>= 2)
@@ -26,5 +26,5 @@ LazyData: true
 Encoding: UTF-8
 biocViews: SingleCell, RNASeq, Normalization,
         Visualization, DimensionReduction, Transcriptomics,
-        GeneExpression, Sequencing, Software
+        GeneExpression, Sequencing, Software, Reactome
 RoxygenNote: 6.0.1

@@ -23,8 +23,8 @@ using namespace Rcpp;
 /*----------------------------------------------------------------------------*/
 // SlalomModel class definition and module //
 
-//' @title
 //' SlalomModel C++ class
+//'
 //' @description
 //' A C++ class for SlalomModel models.
 //'
@@ -44,9 +44,11 @@ using namespace Rcpp;
 //' @useDynLib slalom
 //' @importFrom Rcpp evalCpp
 //' @exportClass Rcpp_SlalomModel
+//' @name SlalomModel
+//' @aliases SlalomModel
 class SlalomModel {
-// base class for slalom holding models
- public:
+    // base class for slalom holding models
+public:
     // declare necessary variables for alpha
     double alpha_pa;
     double alpha_pb;
@@ -113,6 +115,11 @@ class SlalomModel {
     arma::mat tmp3;
     arma::mat tmp4;
     arma::mat tmp5;
+    arma::vec tmpvec1;
+    arma::vec tmpvec2;
+    arma::vec tmpvec3;
+    arma::vec tmpvec4;
+    arma::vec tmpvec5;
     // methods
     void train(void);
     void update(void);
@@ -124,9 +131,9 @@ class SlalomModel {
     // constructor
     SlalomModel() {}
     SlalomModel(arma::mat Y_init, arma::mat pi_init, arma::mat X_init,
-            arma::mat W_init, arma::vec prior_alpha, arma::vec prior_epsilon) :
+                arma::mat W_init, arma::vec prior_alpha, arma::vec prior_epsilon) :
         Y(Y_init), Pi_E1(pi_init), W_gamma0(pi_init), X_E1(X_init),
-         W_E1(W_init) {
+        W_E1(W_init) {
         K = pi_init.n_cols;
         N = Y_init.n_rows;
         G = Y_init.n_cols;
@@ -245,7 +252,7 @@ void SlalomModel::train(void) {
             // Rprintf( "Converged after %d iterations\n", iter);
             break;
         }
-        this->Z_E1 = this->X_E1 * this->W_E1.t();
+        // this->Z_E1 = this->X_E1 * this->W_E1.t();
     }
     if (!converged) {
         Rcout << "Model not converged after " <<  this->nIterations << " iterations." << std::endl;
@@ -262,16 +269,17 @@ inline int randWrapper(const int n) { return floor(unif_rand() * n); }
 
 void SlalomModel::update(void) {
     /*
-    Do one update of weights (with spike-and-slab prior), ARD parameters, factors, annd noise parameters.
+     Do one update of weights (with spike-and-slab prior), ARD parameters, factors, annd noise parameters.
 
-    */
+     */
     this->epsilon_diagSigmaS = arma::zeros(this->K);
     // arma::umat Ion = (this->W_gamma0 > .5);
     // check above: set parameter to zero with every update?
     arma::uvec kRange = arma::regspace<arma::uvec>(0,  (this->K - 1));
-    if (this->shuffle == true && this->iterationCount > 0) {
+    if (this->shuffle == true && this->iterationCount > 1) {
+        Rprintf("Permuting order of factor updates!\n");
         arma::uvec kunfix = arma::regspace<arma::uvec>(this->nKnown,
-        (this->K - 1));
+                                                       (this->K - 1));
         std::random_shuffle(kunfix.begin(), kunfix.end(), randWrapper);
         for (int i = 0; i < (this->K - this->nKnown); ++i) {
             int ii = i + this->nKnown;
@@ -285,11 +293,11 @@ void SlalomModel::update(void) {
         int k = kRange[m];
         if (this->doUpdate[k]) {
             if (this->dropFactors == false || this->iterationCount < 10 ||
-            (this->alpha_E1[k] / arma::var(this->X_E1.col(k))) < 1e10) {
+                (this->alpha_E1[k] / arma::var(this->X_E1.col(k))) < 1e10) {
                 this->updateW(k);
                 if (this->learnPi) {
-                    Rprintf("Update Pi");
                     if (arma::any(this->iUnannotatedSparse == k)) {
+                        Rprintf("Update Pi");
                         this->updatePi(k);
                     }
                 }
@@ -310,13 +318,84 @@ void SlalomModel::update(void) {
 }
 
 
-void SlalomModel::updateAlpha(const int k) {
-    // pdate alpha in a SlalomModel class object - precisions
-    double Ewdwd = arma::accu(this->W_gamma0.col(k) % this->W_E2diag.col(k));
-    // elementwise mult.
-    this->alpha_a(k) = this->alpha_pa + 0.5 * Ewdwd;
-    this->alpha_b(k) = this->alpha_pb + arma::accu(this->W_gamma0.col(k)) / 2.0;
-    this->alpha_E1(k) = this->alpha_b(k) / this->alpha_a(k);
+void SlalomModel::updateW(const int k) {
+    // update the factor weights
+    // define logPi values
+    Rprintf("Factor (column) : %d\n", k);
+    arma::vec logPi;
+    int Muse = arma::accu(this->doUpdate);
+    Rprintf("Muse : %d\n", Muse);
+    if (k < this->nKnown || arma::any(this->iUnannotatedSparse == k) ||
+        arma::any(this->iUnannotatedDense == k)) {
+        // Rprintf("logPi calculation - sparse unannotated or known \n");
+        logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
+        // careful of divide-by-zero errors here
+    } else if (this->nScale > 0 && this->nScale < this->N) {
+        // Rprintf("complicated logPi calculation\n");
+        logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
+        // careful of divide-by-zero errors here
+        arma::uvec isOFF_ = arma::find(this->Pi_E1.col(k) < 0.5);
+        arma::uvec kvec(1);
+        kvec(0) = k;
+        logPi(isOFF_) = ((this->N / this->nScale) *
+            arma::log(this->Pi_E1(isOFF_, kvec) /
+                (1 - this->Pi_E1(isOFF_, kvec))));
+        // careful of divide-by-zero errors here
+        arma::uvec isON_ = arma::find(this->Pi_E1.col(k) > 0.5);
+        if (this->onF > 1.0) {
+            logPi(isON_) = this->onF * arma::log(
+                this->Pi_E1(isON_, kvec) / (1 - this->Pi_E1(isON_, kvec)));
+        }
+    } else {
+        // Rprintf("Simple logPi calculation\n");
+        logPi = arma::log(this->Pi_E1.col(k) / (1 - this->Pi_E1.col(k)));
+    }
+    this->tmpvec1 = logPi;
+    arma::vec sigma2Sigmaw;
+    sigma2Sigmaw = (1.0 / this->epsilon_E1) * this->alpha_E1(k);
+    this->tmp5 = sigma2Sigmaw;
+    Rprintf("Mean sigma2Sigmaw : %f\n", arma::mean(sigma2Sigmaw));
+    Rprintf("N sigma2Sigmaw < 0 : %d\n", arma::accu(sigma2Sigmaw < 0));
+    arma::uvec set1 = arma::regspace<arma::uvec>(0, 1, k - 1);    // zero-indexing
+    arma::uvec set2 = arma::regspace<arma::uvec>(k + 1, 1, this->K - 1);
+    arma::uvec setMinus = arma::join_cols(set1, set2);
+    arma::uvec idx = arma::find(this->doUpdate(setMinus) == 1);
+    setMinus = setMinus(idx);
+    this->setMinus = setMinus;
+
+    arma::vec SmTSk = arma::sum(
+        (arma::repmat(this->X_E1.col(k), 1, Muse - 1) %
+             this->X_E1.cols(setMinus)), 0).t();
+    this->SmTSk = SmTSk;
+    Rprintf("Mean SmTSk : %f\n", arma::mean(SmTSk));
+    double tmp = arma::as_scalar(this->X_E1.col(k).t() * this->X_E1.col(k));
+    double SmTSm = (tmp + arma::sum(this->X_diagSigmaS.col(k)));
+    Rprintf("SmTSm : %f\n", SmTSm);
+
+    arma::vec b;
+    arma::vec diff;
+    b = (this->W_gamma0.cols(setMinus) % this->W_E1.cols(setMinus)) * SmTSk;
+    this->tmp3 = b;
+    diff = (this->X_E1.col(k).t() * this->Z_E1).t() - b;
+    this->tmp4 = diff;
+    Rprintf("Min diff : %f\n", arma::min(diff));
+    Rprintf("Mean diff : %f\n", arma::mean(diff));
+    Rprintf("Max diff : %f\n", arma::max(diff));
+    arma::vec diff2 = diff % diff;
+
+    arma::vec SmTSmSig = SmTSm + sigma2Sigmaw;
+    this->tmpvec2 = SmTSmSig;
+    // update gamma and W
+    arma::vec u_qm = (logPi + 0.5 * arma::log(sigma2Sigmaw) - 0.5 *
+        arma::log(SmTSmSig) + (0.5 * this->epsilon_E1) %
+        (diff2 / SmTSmSig));
+    this->tmpvec3 = u_qm;
+    this->W_gamma0.col(k) = 1.0 / (1 + arma::exp(-u_qm));
+    this->W_gamma1.col(k) = 1.0 - this->W_gamma0.col(k);
+    this->W_E1.col(k) = (diff / SmTSmSig);                // likely error???
+    this->W_sigma2.col(k) = (1.0 / this->epsilon_E1) / SmTSmSig;
+    this->W_E2diag.col(k) = ((this->W_E1.col(k) % this->W_E1.col(k)) +
+        this->W_sigma2.col(k));
 }
 
 
@@ -329,10 +408,61 @@ void SlalomModel::updatePi(const int k) {
         this->Pi_b.col(k);
 }
 
+void SlalomModel::updateAlpha(const int k) {
+    // pdate alpha in a SlalomModel class object - precisions
+    double Ewdwd = arma::accu(this->W_gamma0.col(k) % this->W_E2diag.col(k));
+    // elementwise mult.
+    this->alpha_a(k) = this->alpha_pa + 0.5 * Ewdwd;
+    this->alpha_b(k) = this->alpha_pb + arma::accu(this->W_gamma0.col(k)) / 2.0;
+    this->alpha_E1(k) = this->alpha_b(k) / this->alpha_a(k);
+}
+
+
+void SlalomModel::updateX(const int k) {
+    // update the factor states
+    arma::uvec set1 = arma::regspace<arma::uvec>(0, 1, k - 1);   // zero-indexing
+    arma::uvec set2 = arma::regspace<arma::uvec>(k + 1, 1, this->K - 1);
+    arma::uvec setMinus = arma::join_cols(set1, set2);
+    arma::uvec idx = arma::find(this->doUpdate(setMinus) == 1);
+    setMinus = setMinus(idx);
+    this->setMinus = setMinus;
+    arma::vec SW_sigma;
+    arma::vec SW2_sigma;
+
+    SW2_sigma = ((this->W_gamma0.col(k) % this->W_E2diag.col(k)) %
+                     this->epsilon_E1);
+    double alphaSm = arma::sum(SW2_sigma);
+    Rprintf("alphaSm : %d\n", alphaSm);
+
+    for (int i = 0; i < this->N; i++) {
+        this->X_diagSigmaS(i, k) = 1.0 / (1.0 + alphaSm);
+    }
+
+    if (k >= this->nKnown) {
+        SW_sigma = (this->W_gamma0.col(k) %
+                        this->W_E1.col(k)) % this->epsilon_E1;     // Gx1 vec
+        this->tmpvec1 = SW_sigma;
+        arma::mat b0 = (this->X_E1.cols(setMinus) *
+            (this->W_gamma0.cols(setMinus) % this->W_E1.cols(setMinus)).t());  // NxG mat.
+        this->tmp2 = b0;
+        arma::vec b = b0 * SW_sigma;    // NxG x Gx1 -> Nx1 vec
+        this->tmpvec2 = b;
+        arma::vec barmuX = (this->Z_E1 * SW_sigma) - b;
+        this->tmpvec3 = barmuX;
+
+        // update X
+        this->X_E1.col(k) = barmuX / (1.0 + alphaSm);
+
+        // keep diagSigmaS
+        this->epsilon_diagSigmaS(k) = arma::accu(this->X_diagSigmaS.col(k));
+    }
+}
+
 
 void SlalomModel::updateEpsilon(void) {
     // update Epsilon (vectorised) - noise parameters
-    arma::uvec update_cols = this->doUpdate;
+    arma::uvec update_cols = arma::find(this->doUpdate == 1);
+    this->tmp1 = this->W_gamma0.cols(update_cols);
     arma::mat SW_sigma = (this->W_gamma0.cols(update_cols) %
                               this->W_E1.cols(update_cols));  // elementwise mult.; GxK mat
     arma::mat SW2_sigma = (this->W_gamma0.cols(update_cols) %
@@ -358,114 +488,6 @@ void SlalomModel::updateEpsilon(void) {
     }
 }
 
-
-void SlalomModel::updateX(const int k) {
-    // update the factor states
-    arma::uvec set1 = arma::regspace<arma::uvec>(0, 1, k - 1);   // zero-indexing
-    arma::uvec set2 = arma::regspace<arma::uvec>(k + 1, 1, this->K - 1);
-    arma::uvec setMinus = arma::join_cols(set1, set2);
-    setMinus = setMinus(this->doUpdate(setMinus));
-    arma::vec SW_sigma;
-    arma::vec SW2_sigma;
-
-    SW2_sigma = ((this->W_gamma0.col(k) % this->W_E2diag.col(k)) %
-                     this->epsilon_E1);
-    double alphaSm = arma::sum(SW2_sigma);
-
-    for (int i = 0; i < this->N; i++) {
-        this->X_diagSigmaS(i, k) = 1.0 / (1.0 + alphaSm);
-    }
-
-    if (k >= this->nKnown) {
-        SW_sigma = (this->W_gamma0.col(k) %
-                        this->W_E1.col(k)) % this->epsilon_E1;     // Gx1 vec
-        arma::mat b0 = (this->X_E1.cols(setMinus) *
-            (this->W_gamma0.cols(setMinus) % this->W_E1.cols(setMinus)).t());  // NxG mat.
-        arma::vec b = b0 * SW_sigma;    // NxG x Gx1 -> Nx1 vec
-        arma::vec barmuX = (this->Z_E1 * SW_sigma) - b;
-
-        // update X
-        this->X_E1.col(k) = barmuX / (1.0 + alphaSm);
-
-        // keep diagSigmaS
-        this->epsilon_diagSigmaS(k) = arma::accu(this->X_diagSigmaS.col(k));
-    }
-}
-
-
-void SlalomModel::updateW(const int k) {
-    // update the factor weights
-    // define logPi values
-    Rprintf("Factor (column) : %d\n", k);
-    arma::vec logPi;
-    int Muse = arma::accu(this->doUpdate);
-    Rprintf("Muse : %d\n", Muse);
-    if (k < this->nKnown || arma::any(this->iUnannotatedSparse == k) ||
-        arma::any(this->iUnannotatedDense == k)) {
-        logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
-        // careful of divide-by-zero errors here
-    } else if (this->nScale > 0 && this->nScale < this->N) {
-        logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
-        // careful of divide-by-zero errors here
-        arma::uvec isOFF_ = arma::find(this->Pi_E1.col(k) < 0.5);
-        arma::uvec kvec(1);
-        kvec(0) = k;
-        logPi(isOFF_) = ((this->N / this->nScale) *
-                             arma::log(this->Pi_E1(isOFF_, kvec) /
-                             (1 - this->Pi_E1(isOFF_, kvec))));
-        // careful of divide-by-zero errors here
-        arma::uvec isON_ = arma::find(this->Pi_E1.col(k) > 0.5);
-        if (this->onF > 1.0) {
-            logPi(isON_) = this->onF * arma::log(
-                this->Pi_E1(isON_, kvec) / (1 - this->Pi_E1(isON_, kvec)));
-        }
-    } else {
-        logPi = arma::log(this->Pi_E1.col(k) / (1 - this->Pi_E1.col(k)));
-    }
-    Rprintf("Mean logPi : %f\n", arma::mean(logPi));
-    arma::vec sigma2Sigmaw;
-    sigma2Sigmaw = (1.0 / this->epsilon_E1) * this->alpha_E1(k);
-    this->tmp5 = sigma2Sigmaw;
-    Rprintf("Mean sigma2Sigmaw : %f\n", arma::mean(sigma2Sigmaw));
-    Rprintf("N sigma2Sigmaw < 0 : %d\n", arma::accu(sigma2Sigmaw < 0));
-    arma::uvec set1 = arma::regspace<arma::uvec>(0, 1, k - 1);    // zero-indexing
-    arma::uvec set2 = arma::regspace<arma::uvec>(k + 1, 1, this->K - 1);
-    arma::uvec setMinus = arma::join_cols(set1, set2);
-    setMinus = setMinus(this->doUpdate(setMinus));
-    this->setMinus = setMinus;
-    this->tmp1 = arma::repmat(this->X_E1.col(k), 1, Muse - 1);
-    this->tmp2 = this->X_E1.cols(setMinus);
-    arma::vec SmTSk = arma::sum(
-        (arma::repmat(this->X_E1.col(k), 1, Muse - 1) %
-             this->X_E1.cols(setMinus)), 0).t();
-    this->SmTSk = SmTSk;
-    // Rprintf("Mean SmTSk : %f\n", arma::mean(SmTSk));
-    double tmp = arma::as_scalar(this->X_E1.col(k).t() * this->X_E1.col(k));
-    double SmTSm = (tmp + arma::sum(this->X_diagSigmaS.col(k)));
-    // Rprintf("SmTSm : %f\n", SmTSm);
-
-    arma::vec b;
-    arma::vec diff;
-    b = (this->W_gamma0.cols(setMinus) % this->W_E1.cols(setMinus)) * SmTSk;
-    this->tmp3 = b;
-    diff = (this->X_E1.col(k).t() * this->Z_E1).t() - b;
-    this->tmp4 = diff;
-    // Rprintf("Mean diff : %f\n", arma::mean(diff));
-    arma::vec diff2 = diff % diff;
-
-    arma::vec SmTSmSig = SmTSm + sigma2Sigmaw;
-    // Rprintf("Mean SmTSmSig : %f\n", arma::mean(SmTSmSig));
-    // update gamma and W
-    arma::vec u_qm = (logPi + 0.5 * arma::log(sigma2Sigmaw) - 0.5 *
-                          arma::log(SmTSmSig) + (0.5 * this->epsilon_E1) %
-                          (diff2 / SmTSmSig));
-    this->W_gamma0.col(k) = 1.0 / (1 + arma::exp(-u_qm));
-    this->W_gamma1.col(k) = 1.0 - this->W_gamma0.col(k);
-    this->W_E1.col(k) = (diff / SmTSmSig);
-    this->W_sigma2.col(k) = (1.0 / this->epsilon_E1) / SmTSmSig;
-    // // check how to element-wise square a vector with Armadillo
-    this->W_E2diag.col(k) = this->W_E1.col(k) % this->W_E1.col(k) + this->W_sigma2.col(k);
-}
 
 
 /*----------------------------------------------------------------------------*/
@@ -548,17 +570,19 @@ RCPP_MODULE(SlalomModel) {
         .field("tmp2", &SlalomModel::tmp2)
         .field("tmp3", &SlalomModel::tmp3)
         .field("tmp4", &SlalomModel::tmp4)
-        .field("tmp4", &SlalomModel::tmp5)
+        .field("tmp5", &SlalomModel::tmp5)
+        .field("tmpvec1", &SlalomModel::tmpvec1)
+        .field("tmpvec2", &SlalomModel::tmpvec2)
+        .field("tmpvec3", &SlalomModel::tmpvec3)
+        .field("tmpvec4", &SlalomModel::tmpvec4)
+        .field("tmpvec5", &SlalomModel::tmpvec5)
         // methods
         .method("train", &SlalomModel::train , "Train the SlalomModel")
         .method("update", &SlalomModel::update , "Update the SlalomModel")
         .method("updateW", &SlalomModel::updateW , "Update W")
-        .method("updateX", &SlalomModel::updateW , "Update X")
-        .method("updatePi", &SlalomModel::updateW , "Update Pi")
-        .method("updateEpsilon", &SlalomModel::updateW , "Update Epsilon")
+        .method("updateX", &SlalomModel::updateX , "Update X")
+        .method("updatePi", &SlalomModel::updatePi , "Update Pi")
+        .method("updateEpsilon", &SlalomModel::updateEpsilon , "Update Epsilon")
         .method("updateAlpha", &SlalomModel::updateAlpha , "Update alpha")
         ;
 }
-
-
-

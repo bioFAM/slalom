@@ -16,8 +16,12 @@
 #' a gene set for analysis
 #' @param design numeric design matrix providing values for covariates to fit in
 #' the model (rows represent cells)
-
-#' @return a new SlalomModel object
+#' @param anno_fpr numeric(1), false positive rate (FPR) for assigning genes to
+#' factors (pathways); default is 0.01
+#' @param anno_fnr numeric(1), false negative rate (FNR) for assigning genes to
+#' factors (pathways); default is 0.001
+#'
+#' @return a new Rcpp_SlalomModel object
 #'
 #' @details
 #' This function builds and returns the object, checking for validity, which
@@ -25,15 +29,12 @@
 #'
 #' @importFrom GSEABase geneIds
 #' @importFrom GSEABase getGmt
-#' @import scater
 #' @import Rcpp
 #' @import RcppArmadillo
-#' @importFrom Biobase exprs
 #' @importFrom methods new
 #' @importFrom methods validObject
 #' @importFrom Rcpp evalCpp
-#' @useDynLib slalom
-#' @aliases Rcpp_SlalomModel
+#' @useDynLib slalom, .registration=TRUE, .fixes="Rcpp_"
 #' @export
 #'
 #' @examples
@@ -47,10 +48,11 @@
 #' sce <- SingleCellExperiment::SingleCellExperiment(assays = list(logcounts = mesc_mat))
 #' # model2 <- newSlalomModel(mesc_mat, genesets, n_hidden = 5, min_genes = 10)
 #'
-newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
-                           min_genes = 15, design = NULL) {
+newSlalomModel <- function(
+    object, genesets, n_hidden = 5, prune_genes = TRUE, min_genes = 15,
+    design = NULL, anno_fpr = 0.01, anno_fnr = 0.001) {
 
-    if (!is(object, "SingleCellExperiment"))
+    if (!methods::is(object, "SingleCellExperiment"))
         stop("object must be a SingleCellExperiment")
     Y <- t(object@assays$data$logcounts)
     if (is.null(rownames(object)))
@@ -78,13 +80,16 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
     if (n_hidden > 0L) {
         hidden_factors <- matrix(TRUE, nrow = nrow(I), ncol = n_hidden)
         colnames(hidden_factors) <- paste0("hidden", sprintf("%02d", 1:n_hidden))
-        I <- cbind(I, hidden_factors)
+        I <- cbind(hidden_factors, I)
     }
 
     ## create new SlalomModel object for output
     ## set some attributes that we need frequently for the updates, inculuding
     ## number and idx of hidden (unannotated) terms
-    out <- .newSlalom(Y[, retained_genes], I * 1L, n_hidden, design)
+    pi_init <- I * 1L
+    pi_init[pi_init > 0.5] <- 1 - anno_fpr
+    pi_init[pi_init < 0.5] <- anno_fnr
+    out <- .newSlalom(Y[, retained_genes], pi_init, n_hidden, design)
 
     ## Check validity of object
     #validObject(out)
@@ -92,21 +97,22 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 }
 
 
-.newSlalom <- function(Y, I, n_hidden, design = NULL) {
+.newSlalom <- function(Y, pi_init, n_hidden, design = NULL) {
     n_known <- ifelse(is.null(design), 0, ncol(design))
     slalom_module <- Rcpp::Module("SlalomModel", PACKAGE = "slalom")
-    out <- new(slalom_module$SlalomModel,
-               Y_init = Y,
-               pi_init = I,
-               X_init = matrix(0, nrow = nrow(Y), ncol(I)),
-               W_init = matrix(0, nrow = ncol(Y), ncol(I)),
-               prior_alpha = c(1e-03, 1e-03),
-               prior_epsilon = c(1e-03, 1e-03)
+    out <- new(
+        slalom_module$SlalomModel,
+        Y_init = Y,
+        pi_init = pi_init,
+        X_init = matrix(0, nrow = nrow(Y), ncol(pi_init)),
+        W_init = matrix(0, nrow = ncol(Y), ncol(pi_init)),
+        prior_alpha = c(1e-03, 1e-03),
+        prior_epsilon = c(1e-03, 1e-03)
     )
     ## add more data to the object
-    out$Z_E1 <- out$X_E1 %*% t(out$W_E1 * (1L * I))
-    out$iUnannotatedDense <- seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
-    out$nAnnotated <- ncol(I) - n_hidden
+    out$Z_E1 <- out$X_E1 %*% t(out$W_E1 * pi_init)
+    out$iUnannotatedDense <- seq(from = 1, to = n_hidden)
+    out$nAnnotated <- ncol(pi_init) - n_hidden
     out$nHidden <- n_hidden
     out$nKnown <- n_known
     ## add design matrix as known factors if supplied
@@ -134,7 +140,7 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 #     pi = I * 1L,
 #     termNames = colnames(I),
 #     geneNames = retained_genes,
-#     cellNames = scater::cellNames(object),
+#     cellNames = colnames(object),
 #     iUnannotatedDense = seq(from = (ncol(I) - n_hidden + 1), to = ncol(I))
 # )
 
@@ -203,10 +209,18 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 #' reproducible
 #' @param pi_prior numeric matrix (genes x factors) giving prior probability of
 #' a gene being active for a factor
+#' @param n_hidden integer(1), number of hidden factors in model. Required if
+#' \code{pi_prior} is not \code{NULL}.
+#' @param design design matrix of covariates/factors to fit as known factors
+#' in the model.
+#' @param drop_factors logical(1), should factors be dropped from the model if
+#' the model determines them not to be relevant? Default is \code{TRUE}.
 #'
 #' @details It is strongly recommended to use \code{\link{newSlalomModel}} to
 #' create the \code{\link{SlalomModel}} object prior to applying
 #' \code{initialize}.
+#'
+#' @return an `Rcpp_SlalomModel` object
 #'
 #' @name init
 #' @rdname init
@@ -225,12 +239,12 @@ newSlalomModel <- function(object, genesets, n_hidden = 5, prune_genes = TRUE,
 init <- function(
     object, alpha_priors = NULL, epsilon_priors = NULL,  noise_model = "gauss",
     seed = NULL, pi_prior = NULL, n_hidden = NULL, design = NULL,
-    dropFactors = TRUE) {
+    drop_factors = TRUE) {
     ## if Pi priors are supplied, need to redefine object
     if (!is.null(pi_prior)) {
         if (is.null(n_hidden))
             stop("If pi_prior is supplied, n_hidden must be provided.
-                 First n_hidden columns of pi_prior are understood as hidden factors. ")
+                First n_hidden cols of pi_prior are taken as hidden factors.")
         object <- .newSlalom(object$Y, pi_prior, n_hidden, design)
     }
     ## define noise model
@@ -263,13 +277,13 @@ init <- function(
     ## annotations
     object$Z_E1 <- object$Y
     tmp <- object$Pi_E1
-    tmp[tmp < 0.2] <- 0.01
-    tmp[tmp > 0.99] <- 0.99
+    tmp[tmp < 0.1] <- 0.1
+    tmp[tmp > 0.9] <- 0.9
     object$Z_init <- tmp
 
     ## bits and bobs
     object$onF <- 1 / object$nScale # object@nScale
-    object$dropFactors <- dropFactors
+    object$dropFactors <- drop_factors
     # object@isExpressed <- (object@Z[["E1"]] > 0) * 1.0
     # object@numExpressed <- colSums(object@Z[["E1"]] > 0)
 
@@ -293,7 +307,7 @@ init <- function(
     object$X_diagSigmaS <- matrix(1.0 / 2, nrow = object$N, ncol = object$K)
     object$W_E1 <- matrix(nrow = object$G, ncol = object$K)
     ## initialize gamma component of weights
-    object$W_gamma0 <- object$Z_init
+    object$W_gamma0 <- object$Pi_E1
     object$W_gamma0[object$W_gamma0 <= 0.1] <- 0.1
     object$W_gamma0[object$W_gamma0 >= 0.9] <- 0.9
     object$W_gamma1 <- 1.0 - object$W_gamma0
@@ -352,6 +366,8 @@ init <- function(
 #'
 #' @details Train the model using variational Bayes methods to infer parameters.
 #'
+#' @return an `Rcpp_SlalomModel` object
+#'
 #' @docType methods
 #' @name train
 #' @rdname train
@@ -401,6 +417,9 @@ setMethod("train", "Rcpp_SlalomModel", function(
 #'
 #' @name updateSlalom
 #' @rdname updateSlalom
+#' @importFrom methods is
+#'
+#' @return an `Rcpp_SlalomModel` object
 #'
 #' @author Davis McCarthy
 #' @export
@@ -411,7 +430,7 @@ setMethod("train", "Rcpp_SlalomModel", function(
 #' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
 #' model <- init(model)
 updateSlalom <- function(object) {
-    if (!is(object, "Rcpp_SlalomModel"))
+    if (!methods::is(object, "Rcpp_SlalomModel"))
         stop("object must be of class Rcpp_SlalomModel")
     ## train model
     object$update()

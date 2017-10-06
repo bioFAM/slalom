@@ -9,6 +9,9 @@ updateSlalom(object)
 \arguments{
 \item{object}{a \code{Rcpp_SlalomModel} object}
 }
+\value{
+an `Rcpp_SlalomModel` object
+}
 \description{
 Do one variational update of a SlalomModel to infer model parameters.
 }

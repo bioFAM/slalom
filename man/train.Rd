@@ -28,6 +28,9 @@ the model (default: 5000)}
 
 \item{minIterations}{integer(1) minimum number of iterations to perform.}
 }
+\value{
+an `Rcpp_SlalomModel` object
+}
 \description{
 Train a SlalomModel to infer model parameters.
 }

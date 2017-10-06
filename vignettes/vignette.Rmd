@@ -1,0 +1,106 @@
+---
+title: "Introduction to slalom"
+author:
+- name: "Davis McCarthy and Florian Buettner"
+  affiliation: 
+  - EMBL-EBI
+package: slalom
+output:
+    BiocStyle::html_document
+vignette: >
+  %\VignetteIndexEntry{Introduction to slalom}
+  %\VignetteEngine{knitr::rmarkdown}
+  %VignetteEncoding{UTF-8}
+---
+
+
+```{r knitr-options, echo=FALSE, message=FALSE, warning=FALSE}
+## To render an HTML version that works nicely with github and web pages, do:
+## rmarkdown::render("vignettes/vignette.Rmd", "all")
+library(knitr)
+opts_chunk$set(fig.align = 'center', fig.width = 6, fig.height = 5, dev = 'png')
+# library(ggplot2)
+# theme_set(theme_bw(12))
+```
+
+This document provides an introduction to the capabilities of `slalom`. The 
+package can be used to identify hidden and biological drivers of variation in
+single-cell gene expression data using factorial single-cell latent
+variable models.
+
+# Quickstart
+<a name="quickstart"></a>
+
+Slalom requires:
+1. expression data in a `SingleCellExperiment` object (defined in 
+`SingleCellExperiment` package), typically with log transformed gene expression values;
+2. Gene set annotations in a `GeneSetCollection` class (defined in the 
+`GSEABase` package). A `GeneSetCollection` can be read into R from a `*.gmt` 
+file as shown below.
+
+Here, we show the minimal steps required to run a `slalom` analysis on a subset
+of a mouse embryonic stem cell (mESC) cell cycle-staged dataset.
+
+First, we load the `mesc` dataset included with the package. The `mesc` object
+loaded is a `SingleCellExperiment` object ready for input to `slalom`
+
+```{r quickstart-load-data, message=FALSE, warning=FALSE}
+library(slalom)
+data("mesc")
+```
+
+If we only had a matrix of expression values (assumed to be on the log2-counts 
+scale), then we can easily construct a `SingleCellExperiment` object as follows:
+
+```{r quickstart-make-sce, message=FALSE, warning=FALSE}
+exprs_matrix <- SingleCellExperiment::logcounts(mesc)
+mesc <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(logcounts = exprs_matrix)
+)
+```
+
+We also need to supply `slalom` with genesets in a `GeneSetCollection` obejct.
+If we have genesets stored in a `*.gmt` file (e.g. obtained from 
+[MSigDB](http://software.broadinstitute.org/gsea/msigdb) or 
+[REACTOME](http://reactome.org/)) then it is easy to read these directory into
+an appropriate object, as shown below for a subset of REACTOME genesets.
+
+
+```{r quickstart-load-genesets, message=FALSE, warning=FALSE}
+gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+genesets <- GSEABase::getGmt(gmtfile)
+```
+
+Next we need to create an `Rcpp_SlalomModel` object containing the input data 
+and genesets (and subsequent results) for the model. We create the object with
+the `newSlalomModel` function.
+
+We need to define the number of hidden factors to include in the model 
+(`n_hidden` argument; 2--5 hidden factors recommended) and the minimum number of
+genes required to be present in order to retain a geneset (`min_genes` argument;
+default is 10).
+
+```{r quickstart-new-slalom-model, message=FALSE, warning=FALSE}
+model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+```
+
+Next we need to *initialise* the model with the `init` function. 
+
+```{r quickstart-init, message=FALSE, warning=FALSE}
+model <- init(model)
+```
+
+With the model prepared, we then *train* the model with the `train` function.
+
+```{r quickstart-train, message=FALSE, warning=FALSE}
+model <- train(model, nIterations = 10)
+```
+
+Typically, over 1,000 iterations will be required for the model to converge.
+
+Finally, we can analyse and interpret the output of the model and the sources
+of variation that it identifies. This process will typically include plots of
+factor relevance, gene set augmentation and a scatter plots of the most relevant
+factors.
+
+

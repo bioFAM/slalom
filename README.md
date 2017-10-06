@@ -5,7 +5,7 @@
 This package is an R/C++ implementation of the factorial single-cell latent
 variable model developed by Buettner et al (Genome Biology, 2017).
 
-The `scater` package has been submitted to Bioconductor, so the most reliable way
+The `slalom` package has been submitted to Bioconductor, so the most reliable way
 to install the package is to use the usual Bioconductor method:
 
 ```{R}

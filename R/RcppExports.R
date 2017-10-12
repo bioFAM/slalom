@@ -19,7 +19,7 @@
 #' @return
 #' an object of the SlalomModel class
 #'
-#' @useDynLib slalom
+#' @useDynLib slalom, .registration=TRUE, .fixes="Rcpp_"
 #' @importFrom Rcpp evalCpp
 #' @exportClass Rcpp_SlalomModel
 #' @name SlalomModel

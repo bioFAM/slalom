@@ -10,7 +10,8 @@
 train(object, ...)
 
 \S4method{train}{Rcpp_SlalomModel}(object, nIterations = 5000,
-  tolerance = 1e-08, forceIterations = FALSE, minIterations = 700)
+  tolerance = 1e-08, forceIterations = FALSE, minIterations = 700,
+  shuffle = TRUE)
 }
 \arguments{
 \item{object}{a \code{Rcpp_SlalomModel} object}
@@ -27,6 +28,10 @@ the model (default: 5000)}
 \code{nIteration} times?}
 
 \item{minIterations}{integer(1) minimum number of iterations to perform.}
+
+\item{shuffle}{logical(1) should the order in which factors are updated be
+shuffled between iterations? Shuffling generally helps speed up convergence
+so is recommended and defaults is \code{TRUE}}
 }
 \value{
 an `Rcpp_SlalomModel` object

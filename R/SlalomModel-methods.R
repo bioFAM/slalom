@@ -33,8 +33,6 @@
 #' @import RcppArmadillo
 #' @importFrom methods new
 #' @importFrom methods validObject
-#' @importFrom Rcpp evalCpp
-#' @useDynLib slalom, .registration=TRUE, .fixes="Rcpp_"
 #' @export
 #'
 #' @examples
@@ -55,10 +53,12 @@ newSlalomModel <- function(
     if (!methods::is(object, "SingleCellExperiment"))
         stop("object must be a SingleCellExperiment")
     Y <- t(object@assays$data$logcounts)
+    if (is.null(Y))
+        stop("object must contain 'logcounts' in assays")
     if (is.null(rownames(object)))
         stop("rownames(object) is NULL: expecting gene identifiers as rownames")
-    if (is.null(colnames(Y)))
-        colnames(Y) <- rownames(object)
+    colnames(Y) <- rownames(object)
+    rownames(Y) <- colnames(object)
     ## convert GeneSetCollection into I matrix of indicators
     I <- lapply(genesets, function(x) {colnames(Y) %in% GSEABase::geneIds(x)})
     names(I) <- names(genesets)
@@ -99,9 +99,11 @@ newSlalomModel <- function(
 
 .newSlalom <- function(Y, pi_init, n_hidden, design = NULL) {
     n_known <- ifelse(is.null(design), 0, ncol(design))
-    slalom_module <- Rcpp::Module("SlalomModel", PACKAGE = "slalom")
+    #slalom_module <- Rcpp::Module("SlalomModel", PACKAGE = "slalom")
+    loadModule("SlalomModel")
     out <- new(
-        slalom_module$SlalomModel,
+        #slalom_module$SlalomModel,
+        "Rcpp_SlalomModel",
         Y_init = Y,
         pi_init = pi_init,
         X_init = matrix(0, nrow = nrow(Y), ncol(pi_init)),
@@ -362,6 +364,9 @@ init <- function(
 #' @param forceIterations logical(1) should the model be forced to update
 #' \code{nIteration} times?
 #' @param minIterations integer(1) minimum number of iterations to perform.
+#' @param shuffle logical(1) should the order in which factors are updated be
+#' shuffled between iterations? Shuffling generally helps speed up convergence
+#' so is recommended and defaults is \code{TRUE}
 #' @param ... generic arguments passed to \code{Rcpp_SlalomModel} method
 #'
 #' @details Train the model using variational Bayes methods to infer parameters.
@@ -390,13 +395,13 @@ setGeneric("train", function(object, ...) standardGeneric("train"))
 #' @export
 setMethod("train", "Rcpp_SlalomModel", function(
     object, nIterations = 5000, tolerance = 1e-08, forceIterations = FALSE,
-    minIterations = 700) {
+    minIterations = 700, shuffle = TRUE) {
     ## define training parameters in object
     object$tolerance <- tolerance
     object$nIterations <- nIterations
     object$minIterations <- minIterations
     object$forceIterations <- forceIterations
-    object$shuffle <- TRUE ## shuffle order in which factors are updated each
+    object$shuffle <- shuffle ## shuffle order in which factors are updated each
     ## for each training iteration
 
     ## train model

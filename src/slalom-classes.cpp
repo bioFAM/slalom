@@ -41,7 +41,7 @@ using namespace Rcpp;
 //' @return
 //' an object of the SlalomModel class
 //'
-//' @useDynLib slalom
+//' @useDynLib slalom, .registration=TRUE, .fixes="Rcpp_"
 //' @importFrom Rcpp evalCpp
 //' @exportClass Rcpp_SlalomModel
 //' @name SlalomModel
@@ -348,9 +348,11 @@ void SlalomModel::updateW(const int k) {
     arma::vec b;
     arma::vec diff;
     b = (this->W_gamma0.cols(setMinus) % this->W_E1.cols(setMinus)) * SmTSk;
+    this->tmpvec3 = b;
     diff = (this->X_E1.col(k).t() * this->Z_E1).t() - b;
+    this->tmpvec4 = diff;
     arma::vec diff2 = diff % diff;
-    arma::vec SmTSmSig = SmTSm + sigma2Sigmaw;
+    arma::vec SmTSmSig = SmTSm + sigma2Sigmaw; // same as Py
     this->tmpvec2 = SmTSmSig;
 
     // update gamma and W
@@ -393,6 +395,7 @@ void SlalomModel::updateX(const int k) {
     arma::uvec idx = arma::find(this->doUpdate(setMinus) == 1);
     setMinus = setMinus(idx);
     this->setMinus = setMinus;
+
     arma::vec SW_sigma;
     arma::vec SW2_sigma;
 
@@ -442,7 +445,7 @@ void SlalomModel::updateEpsilon(void) {
     this->epsilon_E1 = 1.0 / ((0.5 * (this->YY  + (-2 * t1  + t2 + t3))) /
         (0.5 * this->N));
     this->epsilon_a.fill(0.5 * this->N + this->epsilon_pa);
-    this->epsilon_b = this->epsilon_pb + 0.5 * (this->YY + (-2 * t1  + t2 + t3));
+    this->epsilon_b = this->epsilon_pb + 0.5 * (this->YY + (-2 * t1 + t2 + t3));
     for (int i = 0; i < this->epsilon_E1.n_elem; i++) {
         if (this->epsilon_E1(i) > 1e6) {
             this->epsilon_E1(i) = 1e6;

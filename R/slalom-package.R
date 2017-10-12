@@ -9,5 +9,4 @@
 #' @import SingleCellExperiment
 #' @import BH
 #' @author Davis McCarthy
-#' @useDynLib slalom
 NULL

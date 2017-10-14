@@ -4,7 +4,7 @@
 \name{Rcpp_SlalomModel}
 \alias{Rcpp_SlalomModel}
 \alias{Rcpp_SlalomModel-class}
-\title{The "Slalom Model" (SlalomModel)  class}
+\title{The "Slalom Model" (Rcpp_SlalomModel)  class}
 \description{
 S4 class and the main class used by slalom to hold model data and results.
 SingleCellExperiment extends the Bioconductor SummarizedExperiment class.

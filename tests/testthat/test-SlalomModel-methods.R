@@ -8,7 +8,14 @@ test_that("newSlalomModel produces a valid object", {
     data("mesc")
     model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
     expect_that(model, is_a("Rcpp_SlalomModel"))
-})
+
+    lib_size <- rnbinom(ncol(mesc), mu = 50000, size = 1)
+    design <- model.matrix(~lib_size)
+    model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10,
+                            design = design)
+    expect_that(model, is_a("Rcpp_SlalomModel"))
+
+    })
 
 
 test_that("SlalomModel initialises", {
@@ -16,7 +23,7 @@ test_that("SlalomModel initialises", {
     genesets <- GSEABase::getGmt(gmtfile)
     data("mesc")
     model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
-    model <- init(model)
+    model <- initSlalom(model)
     expect_that(model, is_a("Rcpp_SlalomModel"))
 
 })
@@ -36,7 +43,7 @@ test_that("SlalomModel trains", {
     rownames(sce) <- unique(unlist(GSEABase::geneIds(genesets[1:20])))[1:500]
     m <- newSlalomModel(sce, genesets[1:20], n_hidden = 1, min_genes = 1)
     ## initialise this model
-    m <- init(m, pi_prior = sim[["init"]][["Pi"]], n_hidden = 1)
+    m <- initSlalom(m, pi_prior = sim[["init"]][["Pi"]], n_hidden = 1)
     m$X_E1 <- sim[["init"]][["X"]]
     m$W_E1 <- sim[["init"]][["W"]]
     m$alpha_E1 <- sim[["init"]][["Alpha"]]
@@ -54,7 +61,8 @@ test_that("SlalomModel trains", {
     expect_equal(m$W_gamma0, sim[["first_iter"]][["W_gamma0"]])
 
     ## train for 500 iterations and compare to Python results
-    m <- train(m, minIterations = 400, nIterations = 500, shuffle = FALSE)
+    m <- trainSlalom(m, minIterations = 400, nIterations = 500, shuffle = FALSE,
+                     pretrain = FALSE)
     expect_true(cor(c(m$alpha_E1[,1]),
                     c(sim[["final_iter"]][["Alpha"]])) > 0.9999)
     expect_true(cor(c(m$X_E1), c(sim[["final_iter"]][["X"]])) > 0.999999)
@@ -64,9 +72,67 @@ test_that("SlalomModel trains", {
     expect_true(cor(c(m$W_gamma0), c(sim[["final_iter"]][["W_gamma0"]])) >
                     0.999999)
 
+    ## test with pretraining and shuffling on
+    m <- newSlalomModel(sce, genesets[1:20], n_hidden = 1, min_genes = 1)
+    ## initialise this model
+    m <- initSlalom(m, pi_prior = sim[["init"]][["Pi"]], n_hidden = 1)
+    m$X_E1 <- sim[["init"]][["X"]]
+    m$W_E1 <- sim[["init"]][["W"]]
+    m$alpha_E1 <- sim[["init"]][["Alpha"]]
+    m$epsilon_E1 <- sim[["init"]][["Epsilon"]]
+    m$W_gamma0 <- sim[["init"]][["W_gamma0"]]
+    m <- trainSlalom(m, minIterations = 400, nIterations = 500, shuffle = TRUE,
+                     pretrain = TRUE)
+    off_factors <- c(11, 12, 16, 18, 21)
+    expect_true(cor(c(m$alpha_E1[,1]),
+                    c(sim[["final_iter"]][["Alpha"]])) > 0.999)
+    ## test corr of absolute values for all factors
+    expect_true(cor(abs(c(m$X_E1)), abs(c(sim[["final_iter"]][["X"]]))) > 0.99)
+    ## test corr of factors that are "on"
+    expect_true(cor(c(m$X_E1[, 2:6]), c(sim[["final_iter"]][["X"]][, 2:6])) >
+                    0.99999)
+    ## test corr of absolute values for all factors
+    expect_true(cor(abs(c(m$W_E1)), abs(c(sim[["final_iter"]][["W"]]))) > 0.99)
+    expect_true(cor(abs(c(m$W_E1[, -off_factors])),
+                    abs(c(sim[["final_iter"]][["W"]][, -off_factors]))) > 0.99)
+    ## test corr of factors that are "on"
+    expect_true(cor(c(m$W_E1[, 2:5]), c(sim[["final_iter"]][["W"]][, 2:5])) >
+                    0.9999)
+    expect_true(cor(c(m$epsilon_E1[,1]),
+                    c(sim[["final_iter"]][["Epsilon"]])) > 0.998)
+    expect_true(cor(c(m$W_gamma0), c(sim[["final_iter"]][["W_gamma0"]])) >
+                    0.998)
+
+
+    ## test without using same initialisation as Python code
+    # m <- newSlalomModel(sce, genesets[1:20], n_hidden = 1, min_genes = 1)
+    # ## initialise this model
+    # m <- initSlalom(m, pi_prior = sim[["init"]][["Pi"]], n_hidden = 1)
+    # m <- trainSlalom(m, minIterations = 400, nIterations = 500, shuffle = TRUE,
+    #                  pretrain = TRUE)
+    # off_factors <- c(6, 9, 11, 12, 16, 17, 18, 20, 21)
+    # expect_true(cor(c(m$alpha_E1[,1]),
+    #                 c(sim[["final_iter"]][["Alpha"]])) > 0.999)
+    # ## test corr of absolute values for all factors
+    # expect_true(cor(abs(c(m$X_E1)), abs(c(sim[["final_iter"]][["X"]]))) > 0.99)
+    # ## test corr of factors that are "on"
+    # expect_true(cor(c(m$X_E1[, 2:6]), c(sim[["final_iter"]][["X"]][, 2:6])) >
+    #                 0.99999)
+    # ## test corr of absolute values for all factors
+    # expect_true(cor(abs(c(m$W_E1)), abs(c(sim[["final_iter"]][["W"]]))) > 0.99)
+    # expect_true(cor(abs(c(m$W_E1[, -off_factors])),
+    #                 abs(c(sim[["final_iter"]][["W"]][, -off_factors]))) > 0.99)
+    # ## test corr of factors that are "on"
+    # expect_true(cor(c(m$W_E1[, 2:5]), c(sim[["final_iter"]][["W"]][, 2:5])) >
+    #                 0.9999)
+    # expect_true(cor(c(m$epsilon_E1[,1]),
+    #                 c(sim[["final_iter"]][["Epsilon"]])) > 0.998)
+    # expect_true(cor(c(m$W_gamma0), c(sim[["final_iter"]][["W_gamma0"]])) >
+    #                 0.998)
+
     # par(mfrow = c(3, 7), mar = c(0.1, 0.1, 0.1, 0.1))
     # for (i in 1:21) {
-    #     plot(m$W_E1[,i], sim[["final_iter"]][["W"]][,i])
+    #     plot(m$W_E1[,i], sim[["final_iter"]][["W"]][, i])
     #     text(-1, 0, labels = i)
     #     abline(0, 1, col = "firebrick")
     # }
@@ -104,12 +170,22 @@ test_that("SlalomModel trains", {
     rownames(mesc) <- toupper(rownames(mesc))
     table(rownames(mesc) %in% genenames)
     model <- newSlalomModel(mesc, genesets[1:100], n_hidden = 5, min_genes = 10)
-    model <- init(model, seed = 222)
+    model <- initSlalom(model, seed = 222)
     expect_that(model, is_a("Rcpp_SlalomModel"))
 
-    model <- train(model, nIterations = 10)
+    model <- trainSlalom(model, nIterations = 1500)
 
     expect_that(model, is_a("Rcpp_SlalomModel"))
+    expect_true(model$converged)
+
+    # model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+    # model <- initSlalom(model, seed = 222)
+    # expect_that(model, is_a("Rcpp_SlalomModel"))
+    #
+    # model <- trainSlalom(model, nIterations = 3000)
+    #
+    # expect_that(model, is_a("Rcpp_SlalomModel"))
+    # expect_true(model$converged)
 
 })
 

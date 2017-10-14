@@ -24,7 +24,8 @@ gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
 genesets <- GSEABase::getGmt(gmtfile)
 data("mesc")
 model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
-model <- init(model)
+model <- initSlalom(model)
+model <- updateSlalom(model)
 }
 \author{
 Davis McCarthy

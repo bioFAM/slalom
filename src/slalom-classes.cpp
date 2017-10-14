@@ -75,9 +75,9 @@ public:
     arma::mat W_gamma0;
     arma::mat W_gamma1;
     // declare necessary variables for Z
-    arma::mat Z_init;
     arma::mat Z_E1;
     // declare other variables
+    arma::mat I;
     arma::mat Pi_a;
     arma::mat Pi_b;
     arma::mat Pi_pa;
@@ -98,15 +98,21 @@ public:
     double tolerance;
     bool forceIterations;
     bool shuffle;
+    bool converged;
     double nScale;
-    char noiseModel;
+    std::vector< std::string > noiseModel;
     double onF;
     arma::vec nOn;
     arma::vec iUnannotatedDense;
     arma::vec iUnannotatedSparse;
     arma::uvec doUpdate;
+    arma::uvec pretrain_order;
     bool dropFactors;
     bool learnPi;
+    // names
+    Rcpp::StringVector termNames;
+    Rcpp::StringVector cellNames;
+    Rcpp::StringVector geneNames;
     // for testing
     arma::vec SmTSk;
     arma::uvec setMinus;
@@ -133,7 +139,7 @@ public:
     SlalomModel() {}
     SlalomModel(arma::mat Y_init, arma::mat pi_init, arma::mat X_init,
                 arma::mat W_init, arma::vec prior_alpha, arma::vec prior_epsilon) :
-        Y(Y_init), Pi_E1(pi_init), W_gamma0(pi_init), X_E1(X_init),
+        Y(Y_init), Pi_E1(pi_init), I(pi_init), W_gamma0(pi_init), X_E1(X_init),
         W_E1(W_init) {
         K = pi_init.n_cols;
         N = Y_init.n_rows;
@@ -174,6 +180,7 @@ public:
         W_sigma2 = arma::ones(G, K);
         W_E2diag = arma::zeros(G, K);
         // initialise iterations
+        converged = false;
         iterationCount = 0;
         tolerance = 1e-08;
         learnPi = true;
@@ -207,7 +214,7 @@ void SlalomModel::train(void) {
     double meanerr = arma::mean(error);
     // mean absolute error
     error_old.fill(100);
-    bool converged = false;
+    this->converged = false;
     // iterate model to train it
     this->iterationCount = 0;
     for (int iter = 0; iter <= this->nIterations; iter++) {
@@ -216,23 +223,20 @@ void SlalomModel::train(void) {
         this->iterationCount++;
         if (iter % 100 == 0) {
             Rcout << "iteration " << iter << std::endl;
-            // Rprintf( "iteration %d\\n", iter);
         }
         if (iter % 50 == 0) {
-            // Rcout << "iteration " << iter << std::endl;
             error_old = error;
             Zr = this->X_E1 * this->W_E1.t();
             Zd = this->Z_E1 - Zr;
             error.fill(arma::mean(arma::mean((arma::abs(Zd)))));
             // mean absolute error
-            converged = arma::approx_equal(error_old, error, "absdiff",
+            this->converged = arma::approx_equal(error_old, error, "absdiff",
                                            this->tolerance);
             double meanerr = arma::mean(error);
         }
-        if ( converged && !(this->forceIterations) &&
+        if ( this->converged && !(this->forceIterations) &&
              (iter > this->minIterations) ) {
             Rcout << "Model converged after " << iter << " iterations." << std::endl;
-            // Rprintf( "Converged after %d iterations\n", iter);
             break;
         }
         // this->Z_E1 = this->X_E1 * this->W_E1.t();
@@ -258,7 +262,12 @@ void SlalomModel::update(void) {
     this->epsilon_diagSigmaS = arma::zeros(this->K);
     // arma::umat Ion = (this->W_gamma0 > .5);
     // check above: set parameter to zero with every update?
-    arma::uvec kRange = arma::regspace<arma::uvec>(0,  (this->K - 1));
+    arma::uvec kRange;
+    if (this->iterationCount == 1) {
+        kRange = this->pretrain_order;
+    } else {
+        kRange = arma::regspace<arma::uvec>(0,  (this->K - 1));
+    }
     if (this->shuffle == true && this->iterationCount > 1) {
         arma::uvec kunfix = arma::regspace<arma::uvec>(this->nKnown,
                                                        (this->K - 1));
@@ -269,7 +278,6 @@ void SlalomModel::update(void) {
         }
     }
     // switch factors off such that they can't be turned back on
-    // Better syntax, use auto! automatically gets the right iterator type (C++11)
     // Regular iterator, non-C++11
     for (int m = 0; m < this->K; m++) {
         int k = kRange[m];
@@ -482,6 +490,7 @@ RCPP_MODULE(SlalomModel) {
         .field("forceIterations", &SlalomModel::forceIterations)
         .field("tolerance", &SlalomModel::tolerance)
         .field("shuffle", &SlalomModel::shuffle)
+        .field("converged", &SlalomModel::converged)
         .field("noiseModel", &SlalomModel::noiseModel)
         .field("onF", &SlalomModel::onF)
         // alpha
@@ -511,12 +520,12 @@ RCPP_MODULE(SlalomModel) {
         .field("W_gamma1", &SlalomModel::W_gamma1)
         // Z
         .field("Z_E1", &SlalomModel::Z_E1)
-        .field("Z_init", &SlalomModel::Z_init)
         // Pi
         .field("Pi_a", &SlalomModel::Pi_a)
         .field("Pi_pa", &SlalomModel::Pi_pa)
         .field("Pi_b", &SlalomModel::Pi_b)
         .field("Pi_E1", &SlalomModel::Pi_E1)
+        .field("I", &SlalomModel::I)
         // other variables
         .field("Known", &SlalomModel::Known)
         .field("Y", &SlalomModel::Y)
@@ -526,8 +535,13 @@ RCPP_MODULE(SlalomModel) {
         .field("iUnannotatedSparse", &SlalomModel::iUnannotatedSparse)
         .field("nOn", &SlalomModel::nOn)
         .field("doUpdate", &SlalomModel::doUpdate)
+        .field("pretrain_order", &SlalomModel::pretrain_order)
         .field("learnPi", &SlalomModel::learnPi)
         .field("dropFactors", &SlalomModel::dropFactors)
+        // names
+        .field("termNames", &SlalomModel::termNames)
+        .field("cellNames", &SlalomModel::cellNames)
+        .field("geneNames", &SlalomModel::geneNames)
         // for testing
         .field("SmTSk", &SlalomModel::SmTSk)
         .field("setMinus", &SlalomModel::setMinus)

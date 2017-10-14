@@ -5,7 +5,8 @@
 \title{Create a new SlalomModel object.}
 \usage{
 newSlalomModel(object, genesets, n_hidden = 5, prune_genes = TRUE,
-  min_genes = 15, design = NULL, anno_fpr = 0.01, anno_fnr = 0.001)
+  min_genes = 15, design = NULL, anno_fpr = 0.01, anno_fnr = 0.001,
+  assay_name = "logcounts")
 }
 \arguments{
 \item{object}{\code{"SingleCellExperiment"} object N x G expression data matrix (cells x genes)}
@@ -29,6 +30,10 @@ factors (pathways); default is 0.01}
 
 \item{anno_fnr}{numeric(1), false negative rate (FNR) for assigning genes to
 factors (pathways); default is 0.001}
+
+\item{assay_name}{character(1), the name of the \code{assay} of the
+\code{object} to use as expression values. Default is \code{logcounts},
+assumed to be normalised log2-counts-per-million values or equivalent.}
 }
 \value{
 a new Rcpp_SlalomModel object

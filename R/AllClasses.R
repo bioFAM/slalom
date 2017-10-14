@@ -1,6 +1,6 @@
 # Define the SlalomModel class for the package
 
-#' The "Slalom Model" (SlalomModel)  class
+#' The "Slalom Model" (Rcpp_SlalomModel)  class
 #'
 #' S4 class and the main class used by slalom to hold model data and results.
 #' SingleCellExperiment extends the Bioconductor SummarizedExperiment class.

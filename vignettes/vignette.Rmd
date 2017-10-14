@@ -87,13 +87,13 @@ model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
 Next we need to *initialise* the model with the `init` function. 
 
 ```{r quickstart-init, message=FALSE, warning=FALSE}
-model <- init(model)
+model <- initSlalom(model)
 ```
 
 With the model prepared, we then *train* the model with the `train` function.
 
 ```{r quickstart-train, message=FALSE, warning=FALSE}
-model <- train(model, nIterations = 10)
+model <- trainSlalom(model, nIterations = 10)
 ```
 
 Typically, over 1,000 iterations will be required for the model to converge.

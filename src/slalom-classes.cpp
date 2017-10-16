@@ -286,7 +286,7 @@ void SlalomModel::update(void) {
                 (this->alpha_E1[k] / arma::var(this->X_E1.col(k))) < 1e10) {
                 this->updateW(k);
                 if (this->learnPi) {
-                    if (arma::any(this->iUnannotatedSparse == k)) {
+                    if (arma::any((this->iUnannotatedSparse - 1) == k)) {
                         this->updatePi(k);
                     }
                 }
@@ -311,13 +311,13 @@ void SlalomModel::updateW(const int k) {
     // define logPi values
     arma::vec logPi;
     int Muse = arma::accu(this->doUpdate);
-    if (k < this->nKnown || arma::any(this->iUnannotatedSparse == k) ||
-        arma::any(this->iUnannotatedDense == k)) {
-        // Rprintf("logPi calculation - sparse unannotated or known \n");
+    if (k < this->nKnown || arma::any((this->iUnannotatedSparse - 1) == k) ||
+        arma::any((this->iUnannotatedDense - 1) == k)) {
+        Rprintf("logPi calculation - unannotated or known factor \n");
         logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
         // careful of divide-by-zero errors here
     } else if (this->nScale > 0 && this->nScale < this->N) {
-        // Rprintf("complicated logPi calculation\n");
+        Rprintf("complicated logPi calculation\n");
         logPi = arma::log(this->Pi_E1.col(k) / (1.0 - this->Pi_E1.col(k)));
         // careful of divide-by-zero errors here
         arma::uvec isOFF_ = arma::find(this->Pi_E1.col(k) < 0.5);
@@ -333,7 +333,7 @@ void SlalomModel::updateW(const int k) {
                 this->Pi_E1(isON_, kvec) / (1 - this->Pi_E1(isON_, kvec)));
         }
     } else {
-        // Rprintf("Simple logPi calculation\n");
+        Rprintf("Simple logPi calculation\n");
         logPi = arma::log(this->Pi_E1.col(k) / (1 - this->Pi_E1.col(k)));
     }
     arma::vec sigma2Sigmaw;

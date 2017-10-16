@@ -6,7 +6,7 @@
 \usage{
 initSlalom(object, alpha_priors = NULL, epsilon_priors = NULL,
   noise_model = "gauss", seed = NULL, pi_prior = NULL, n_hidden = NULL,
-  design = NULL, drop_factors = TRUE, verbose = FALSE)
+  design = NULL, verbose = FALSE, save_init = FALSE)
 }
 \arguments{
 \item{object}{a \code{Rcpp_SlalomModel} object}
@@ -21,22 +21,23 @@ gamma prior distribution for noise precision parameters}
 Gaussian noise model}
 
 \item{seed}{integer(1) value supplying a random seed to make results
-reproducible}
+reproducible (default is \code{NULL})}
 
 \item{pi_prior}{numeric matrix (genes x factors) giving prior probability of
 a gene being active for a factor}
 
 \item{n_hidden}{integer(1), number of hidden factors in model. Required if
-\code{pi_prior} is not \code{NULL}.}
+\code{pi_prior} is not \code{NULL}, ignored otherwise.}
 
-\item{design}{design matrix of covariates/factors to fit as known factors
-in the model.}
-
-\item{drop_factors}{logical(1), should factors be dropped from the model if
-the model determines them not to be relevant? Default is \code{TRUE}.}
+\item{design}{matrix of known factors (covariates) to fit in the
+model. Optional if \code{pi_prior} is not \code{NULL}, ignored otherwise.}
 
 \item{verbose}{logical(1), should messages be printed about what the function
 is doing? Default is \code{TRUE}.}
+
+\item{save_init}{logical(1), save the initial X values (factor states for
+each cell) in the object? Default is \code{FALSE} as this is potentially a
+large N (number of cell) by K (number of factors) matrix.}
 }
 \value{
 an `Rcpp_SlalomModel` object

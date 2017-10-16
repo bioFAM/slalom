@@ -9,7 +9,7 @@
 \usage{
 trainSlalom(object, nIterations = 5000, minIterations = 700,
   tolerance = 1e-08, forceIterations = FALSE, shuffle = TRUE,
-  pretrain = TRUE, verbose = TRUE, seed = 222)
+  pretrain = TRUE, verbose = TRUE, seed = NULL, drop_factors = TRUE)
 }
 \arguments{
 \item{object}{a \code{Rcpp_SlalomModel} object}
@@ -37,7 +37,10 @@ is \code{TRUE}}
 is doing? Default is \code{TRUE}.}
 
 \item{seed}{integer(1) value supplying a random seed to make results
-reproducible}
+reproducible (default is \code{NULL})}
+
+\item{drop_factors}{logical(1), should factors be dropped from the model if
+the model determines them not to be relevant? Default is \code{TRUE}.}
 }
 \value{
 an `Rcpp_SlalomModel` object

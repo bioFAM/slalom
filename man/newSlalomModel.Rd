@@ -6,7 +6,7 @@
 \usage{
 newSlalomModel(object, genesets, n_hidden = 5, prune_genes = TRUE,
   min_genes = 15, design = NULL, anno_fpr = 0.01, anno_fnr = 0.001,
-  assay_name = "logcounts")
+  assay_name = "logcounts", verbose = TRUE)
 }
 \arguments{
 \item{object}{\code{"SingleCellExperiment"} object N x G expression data matrix (cells x genes)}
@@ -34,6 +34,9 @@ factors (pathways); default is 0.001}
 \item{assay_name}{character(1), the name of the \code{assay} of the
 \code{object} to use as expression values. Default is \code{logcounts},
 assumed to be normalised log2-counts-per-million values or equivalent.}
+
+\item{verbose}{logical(1), should information about what's going be printed
+to screen?}
 }
 \value{
 a new Rcpp_SlalomModel object

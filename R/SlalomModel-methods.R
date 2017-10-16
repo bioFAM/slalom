@@ -26,6 +26,8 @@
 #' @param assay_name character(1), the name of the \code{assay} of the
 #' \code{object} to use as expression values. Default is \code{logcounts},
 #' assumed to be normalised log2-counts-per-million values or equivalent.
+#' @param verbose logical(1), should information about what's going be printed
+#' to screen?
 #'
 #' @return a new Rcpp_SlalomModel object
 #'
@@ -56,7 +58,8 @@
 #'
 newSlalomModel <- function(
     object, genesets, n_hidden = 5, prune_genes = TRUE, min_genes = 15,
-    design = NULL, anno_fpr = 0.01, anno_fnr = 0.001, assay_name = "logcounts") {
+    design = NULL, anno_fpr = 0.01, anno_fnr = 0.001, assay_name = "logcounts",
+    verbose = TRUE) {
 
     if (!methods::is(object, "SingleCellExperiment"))
         stop("object must be a SingleCellExperiment")
@@ -77,9 +80,12 @@ newSlalomModel <- function(
     rownames(I) <- colnames(Y)
     ## filter genesets on min_genes
     n_sets_pass <- colSums(I) >= min_genes
-    if (sum(n_sets_pass) > 0L)
+    if (sum(n_sets_pass) > 0L) {
         I <- I[, n_sets_pass]
-    else
+        if (verbose)
+            cat(sum(n_sets_pass), "annotated factors retained; ",
+                length(genesets) - sum(n_sets_pass), "annotated factors dropped.\n")
+    } else
         stop("No gene sets found containing more than min_genes genes.")
     ## prune genes if desired
     if (prune_genes) {
@@ -87,6 +93,8 @@ newSlalomModel <- function(
         I <- I[keep_gene, ]
     }
     retained_genes <- rownames(I)
+    if (verbose)
+        cat(length(retained_genes), " genes retained for analysis.\n")
     ## add hidden factors
     if (n_hidden > 0L) {
         hidden_factors <- matrix(TRUE, nrow = nrow(I), ncol = n_hidden)
@@ -99,6 +107,8 @@ newSlalomModel <- function(
     ## number and idx of hidden (unannotated) terms
     pi_init <- I * 1L
     if (!is.null(design)) {
+        if (is.null(colnames(design)))
+            colnames(design) <- paste0("known", sprintf("%02d", 1:ncol(design)))
         tmpmat <- matrix(1, nrow = nrow(pi_init), ncol = ncol(design))
         colnames(tmpmat) <- colnames(design)
         pi_init <- cbind(tmpmat, pi_init)
@@ -109,6 +119,7 @@ newSlalomModel <- function(
     out$termNames <- c(colnames(design), colnames(I))
     out$cellNames <- rownames(Y)
     out$geneNames <- retained_genes
+    out$pretrain_order <- seq_len(out$K) - 1
     ## Check validity of object
     #validObject(out)
     out
@@ -167,17 +178,18 @@ newSlalomModel <- function(
 #' @param noise_model character(1) defining noise model, defaults to "gauss" for
 #' Gaussian noise model
 #' @param seed integer(1) value supplying a random seed to make results
-#' reproducible
+#' reproducible (default is \code{NULL})
 #' @param pi_prior numeric matrix (genes x factors) giving prior probability of
 #' a gene being active for a factor
 #' @param n_hidden integer(1), number of hidden factors in model. Required if
-#' \code{pi_prior} is not \code{NULL}.
-#' @param design design matrix of covariates/factors to fit as known factors
-#' in the model.
-#' @param drop_factors logical(1), should factors be dropped from the model if
-#' the model determines them not to be relevant? Default is \code{TRUE}.
+#' \code{pi_prior} is not \code{NULL}, ignored otherwise.
+#' @param design matrix of known factors (covariates) to fit in the
+#' model. Optional if \code{pi_prior} is not \code{NULL}, ignored otherwise.
 #' @param verbose logical(1), should messages be printed about what the function
 #' is doing? Default is \code{TRUE}.
+#' @param save_init logical(1), save the initial X values (factor states for
+#' each cell) in the object? Default is \code{FALSE} as this is potentially a
+#' large N (number of cell) by K (number of factors) matrix.
 #'
 #' @details It is strongly recommended to use \code{\link{newSlalomModel}} to
 #' create the \code{\link{SlalomModel}} object prior to applying
@@ -192,6 +204,7 @@ newSlalomModel <- function(
 #' @importFrom rsvd rpca
 #' @importFrom stats runif
 #' @importFrom stats rnorm
+#' @importFrom stats prcomp
 #' @export
 #' @examples
 #' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
@@ -202,15 +215,22 @@ newSlalomModel <- function(
 initSlalom <- function(
     object, alpha_priors = NULL, epsilon_priors = NULL,  noise_model = "gauss",
     seed = NULL, pi_prior = NULL, n_hidden = NULL, design = NULL,
-    drop_factors = TRUE, verbose = FALSE) {
+    verbose = FALSE, save_init = FALSE) {
     if (!methods::is(object, "Rcpp_SlalomModel"))
         stop("object must be of class Rcpp_SlalomModel")
     ## if Pi priors are supplied, need to redefine object
     if (!is.null(pi_prior)) {
         if (is.null(n_hidden))
-            stop("If pi_prior is supplied, n_hidden must be provided.
-                First ncol(design) cols of pi_prior are taken as known covariates and next n_hidden cols are taken as hidden factors.")
+            stop("If pi_prior is supplied, n_hidden and n_known must be provided.
+                First n_known cols of pi_prior are taken as known covariates and next n_hidden cols are taken as hidden factors.")
+        tnames <- object$termNames
+        cnames <- object$cellNames
+        gnames <- object$geneNames
         object <- .newSlalom(object$Y, pi_prior, n_hidden, design)
+        object$termNames <- tnames
+        object$cellNames <- cnames
+        object$geneNames <- gnames
+        object$pretrain_order <- seq_len(object$K) - 1
     }
     ## define noise model
     noise_model <- match.arg(noise_model, c("gauss")) ## future: support "hurdle", "poisson"
@@ -244,19 +264,18 @@ initSlalom <- function(
 
     ## bits and bobs
     object$onF <- 1 / object$nScale # object@nScale
-    object$dropFactors <- drop_factors
     # object@isExpressed <- (object@Z[["E1"]] > 0) * 1.0
     # object@numExpressed <- colSums(object@Z[["E1"]] > 0)
 
     ## initialize parameters using random PCA method
-    object <- .initializePCARand(object, seed = seed, saveInit = TRUE)
+    object <- .initializePCARand(object, seed = seed, save_init = save_init)
     ## check validity of object and return
     validObject(object)
     object
 }
 
 
-.initializePCARand <- function(object, seed = 222, saveInit = FALSE) {
+.initializePCARand <- function(object, seed = NULL, save_init = FALSE) {
     if (!is.null(seed))
         set.seed(seed)
     # Zstd <- object$Z[["E1"]]
@@ -296,16 +315,18 @@ initSlalom <- function(
         object$W_E1[, k] <- sqrt(1.0 / object$K) * stats::rnorm(object$G)
         object$X_diagSigmaS[, k] <- 1.0 / 2
         if (sum(Ion[,k]) > 5) {
-            ## randomized PCA for speed
-            pca <- rsvd::rpca(Ystd[, Ion[, k]], k = 1, retx = TRUE)
-            object$X_E1[, k] <- pca$x[, 1] / scale(pca$x[, 1])
+            if (object$N < 500)
+                pca <- stats::prcomp(Ystd[, Ion[, k]], rank. = 1, retx = TRUE)
+            else
+                pca <- rsvd::rpca(Ystd[, Ion[, k]], k = 1, retx = TRUE)
+            object$X_E1[, k] <- scale(pca$x[, 1])
         } else {
-            object$X_E1[, k] <- stats::runif(object$N)
+            object$X_E1[, k] <- stats::rnorm(object$N)
         }
     }
     ## save initial X values if desired
-    if (saveInit) {
-        object$X_init <- object$X_init
+    if (save_init) {
+        object$X_init <- object$X_E1
     }
     object
 }
@@ -336,7 +357,9 @@ initSlalom <- function(
 #' @param verbose logical(1), should messages be printed about what the function
 #' is doing? Default is \code{TRUE}.
 #' @param seed integer(1) value supplying a random seed to make results
-#' reproducible
+#' reproducible (default is \code{NULL})
+#' @param drop_factors logical(1), should factors be dropped from the model if
+#' the model determines them not to be relevant? Default is \code{TRUE}.
 #'
 #' @details Train the model using variational Bayes methods to infer parameters.
 #'
@@ -358,8 +381,9 @@ initSlalom <- function(
 trainSlalom <- function(
     object, nIterations = 5000, minIterations = 700, tolerance = 1e-08,
     forceIterations = FALSE, shuffle = TRUE, pretrain = TRUE, verbose = TRUE,
-    seed = 222) {
+    seed = NULL, drop_factors = TRUE) {
     ## define training parameters in object
+    object$dropFactors <- drop_factors  ## drop factors if deemed to be off
     object$tolerance <- tolerance
     object$nIterations <- nIterations
     object$minIterations <- minIterations
@@ -368,7 +392,7 @@ trainSlalom <- function(
     ## for each training iteration
     if (pretrain) {
         if (verbose)
-            message("pre-training model for faster convergence\n")
+            cat("pre-training model for faster convergence\n")
         pt_out <- .preTrain(object, seed = seed)
         object$pretrain_order <- pt_out - 1
     } else {
@@ -381,7 +405,7 @@ trainSlalom <- function(
 }
 
 
-.preTrain <- function(object, seed = 222, n_fix = NULL) {
+.preTrain <- function(object, seed = NULL, n_fix = NULL) {
     ## n_fix denotes the number of terms which should be fixed and updated first;
     ## defaults to NULL, which results in the nubmer of unannotated factors
     ## being updated first
@@ -393,7 +417,10 @@ trainSlalom <- function(
     ## fit pca
     if (!is.null(seed))
         set.seed(seed)
-    pca <- rsvd::rpca(object$Y, k = 1, retx = TRUE)
+    if (object$N < 500)
+        pca <- stats::prcomp(object$Y, rank. = 1, retx = TRUE)
+    else
+        pca <- rsvd::rpca(object$Y, k = 1, retx = TRUE)
     ## sort by correlation to PC1
     mpc <- abs(stats::cor(object$X_E1, pca$x))[-c(1:n_fix)]
     Ipi <- order(mpc, decreasing = TRUE)
@@ -416,8 +443,9 @@ trainSlalom <- function(
     obj_fwd$shuffle <- TRUE
     obj_fwd$nScale <- 30
     obj_fwd <- initSlalom(obj_fwd)
-    for (iter in seq_len(50))
-        obj_fwd <- updateSlalom(obj_fwd)
+    obj_fwd <- trainSlalom(obj_fwd, pretrain = FALSE, shuffle = FALSE,
+                           nIterations = 50, minIterations = 50,
+                           verbose = FALSE, drop_factors = FALSE)
     alpha_fwd <- obj_fwd$alpha_E1
     rm(obj_fwd)
     ## run reverse model for 50 iterations
@@ -426,8 +454,9 @@ trainSlalom <- function(
     obj_rev$shuffle <- TRUE
     obj_rev$nScale <- 30
     obj_rev <- initSlalom(obj_rev)
-    for (iter in seq_len(50))
-        obj_rev <- updateSlalom(obj_rev)
+    obj_rev <- trainSlalom(obj_rev, pretrain = FALSE, shuffle = FALSE,
+                           nIterations = 50, minIterations = 50,
+                           verbose = FALSE, drop_factors = FALSE)
     alpha_rev <- obj_rev$alpha_E1
     rm(obj_rev)
     ## get update ordering

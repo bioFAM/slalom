@@ -340,7 +340,11 @@ hidden factors (which may represent batch or other technical variation) or
 factors like cell cycle. 
 
 
+# Session Info
 
+```{r session-info}
+sessionInfo()
+```
 
 
 

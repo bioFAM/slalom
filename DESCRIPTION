@@ -16,7 +16,7 @@ Description: slalom is a scalable modelling framework for single-cell RNA-seq
 Depends: R (>= 3.4)
 Imports: Rcpp (>= 0.12.8), RcppArmadillo, BH, ggplot2, grid, GSEABase, 
         methods, rsvd, SingleCellExperiment, SummarizedExperiment, stats
-Suggests: knitr, rhdf5, testthat
+Suggests: knitr, rhdf5, scater, testthat
 LinkingTo: Rcpp, RcppArmadillo, BH
 License: GPL-2
 VignetteBuilder: knitr

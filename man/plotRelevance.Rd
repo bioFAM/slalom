@@ -24,6 +24,9 @@ plotted? Default is \code{FALSE}}
 \item{unannotated_sparse}{logical(1), should sparse unannotated factors be
 plotted? Default is \code{FALSE}}
 }
+\value{
+a ggplot object
+}
 \description{
 Plot results of a Slalom model
 }

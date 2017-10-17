@@ -84,6 +84,8 @@ topTerms <- function(
 #' @param unannotated_sparse logical(1), should sparse unannotated factors be
 #' plotted? Default is \code{FALSE}
 #'
+#' @return a ggplot object
+#'
 #' @import ggplot2
 #' @import grid
 #' @export
@@ -104,6 +106,7 @@ plotRelevance <- function(
     df <- topTerms(object, n_active, mad_filter, annotated, unannotated_dense,
                    unannotated_sparse)
     df[["term"]] <- factor(df[["term"]], levels = rev(df[["term"]]))
+    df[["n_loss"]] <- -df[["n_loss"]]
     p1 <- ggplot(df, aes_string(x = "relevance", y = "term", size = "n_prior")) +
         geom_segment(aes_string(x = 0, xend = "relevance",
                                 y = "term", yend = "term"),
@@ -120,10 +123,10 @@ plotRelevance <- function(
                      colour = "firebrick", size = 1) +
         geom_point(aes(x = n_gain, y = term, colour = "firebrick"),
                    size = 3) +
-        geom_segment(aes(x = 0, xend = -n_loss,
+        geom_segment(aes(x = 0, xend = n_loss,
                                 y = term, yend = term),
                      colour = "dodgerblue", size = 1) +
-        geom_point(aes(x = -n_loss, y = term, colour = "dodgerblue"),
+        geom_point(aes(x = n_loss, y = term, colour = "dodgerblue"),
                    size = 3) +
         scale_colour_manual(name = "Gene set change", guide = "legend",
                             values = c('firebrick' = 'firebrick',

@@ -88,7 +88,7 @@ test_that("SlalomModel trains", {
                      pretrain = TRUE, seed = 222)
     off_factors <- c(11, 12, 16, 18, 21)
     expect_true(cor(c(m$alpha_E1[,1]),
-                    c(sim[["final_iter"]][["Alpha"]])) > 0.95)
+                    c(sim[["final_iter"]][["Alpha"]])) > 0.9)
     ## test corr of absolute values for all factors
     expect_true(cor(abs(c(m$X_E1)), abs(c(sim[["final_iter"]][["X"]]))) > 0.90)
     ## test corr of factors that are "on"
@@ -102,7 +102,7 @@ test_that("SlalomModel trains", {
     expect_true(cor(c(m$W_E1[, 2:5]), c(sim[["final_iter"]][["W"]][, 2:5])) >
                     0.999)
     expect_true(cor(c(m$epsilon_E1[,1]),
-                    c(sim[["final_iter"]][["Epsilon"]])) > 0.93)
+                    c(sim[["final_iter"]][["Epsilon"]])) > 0.9)
     expect_true(cor(c(m$W_gamma0), c(sim[["final_iter"]][["W_gamma0"]])) >
                     0.998)
     ## run this model to convergence
@@ -122,7 +122,7 @@ test_that("SlalomModel trains", {
     mm <- newSlalomModel(sce, genesets[1:23], n_hidden = 1, min_genes = 1)
     ## initialise this model
     mm <- initSlalom(mm, pi_prior = sim[["init"]][["Pi"]], n_hidden = 1, seed = 222)
-    mm <- trainSlalom(mm, minIterations = 400, nIterations = 3000, shuffle = TRUE,
+    mm <- trainSlalom(mm, minIterations = 400, nIterations = 5000, shuffle = TRUE,
                      pretrain = TRUE, seed = 222)
     expect_true(mm$converged)
     off_factors <- c(11, 12, 16, 17, 18, 21)

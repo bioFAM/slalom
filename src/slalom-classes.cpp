@@ -113,20 +113,6 @@ public:
     Rcpp::StringVector termNames;
     Rcpp::StringVector cellNames;
     Rcpp::StringVector geneNames;
-    // for testing
-    arma::vec SmTSk;
-    arma::uvec setMinus;
-    double alphaSm;
-    arma::mat tmp1;
-    arma::mat tmp2;
-    arma::mat tmp3;
-    arma::mat tmp4;
-    arma::mat tmp5;
-    arma::vec tmpvec1;
-    arma::vec tmpvec2;
-    arma::vec tmpvec3;
-    arma::vec tmpvec4;
-    arma::vec tmpvec5;
     // methods
     void train(void);
     void update(void);
@@ -335,30 +321,24 @@ void SlalomModel::updateW(const int k) {
     }
     arma::vec sigma2Sigmaw;
     sigma2Sigmaw = (1.0 / this->epsilon_E1) * this->alpha_E1(k);
-    this->tmpvec1 = sigma2Sigmaw;
     arma::uvec set1 = arma::regspace<arma::uvec>(0, 1, k - 1);    // zero-indexing
     arma::uvec set2 = arma::regspace<arma::uvec>(k + 1, 1, this->K - 1);
     arma::uvec setMinus = arma::join_cols(set1, set2);
     arma::uvec idx = arma::find(this->doUpdate(setMinus) == 1);
     setMinus = setMinus(idx);
-    this->setMinus = setMinus;
 
     arma::vec SmTSk = arma::sum(
         (arma::repmat(this->X_E1.col(k), 1, Muse - 1) %
              this->X_E1.cols(setMinus)), 0).t();
-    this->SmTSk = SmTSk;
     double tmp = arma::as_scalar(this->X_E1.col(k).t() * this->X_E1.col(k));
     double SmTSm = (tmp + arma::sum(this->X_diagSigmaS.col(k)));
 
     arma::vec b;
     arma::vec diff;
     b = (this->W_gamma0.cols(setMinus) % this->W_E1.cols(setMinus)) * SmTSk;
-    this->tmpvec3 = b;
     diff = (this->X_E1.col(k).t() * this->Z_E1).t() - b;
-    this->tmpvec4 = diff;
     arma::vec diff2 = diff % diff;
     arma::vec SmTSmSig = SmTSm + sigma2Sigmaw; // same as Py
-    this->tmpvec2 = SmTSmSig;
 
     // update gamma and W
     arma::vec u_qm = (logPi + 0.5 * arma::log(sigma2Sigmaw) - 0.5 *
@@ -399,7 +379,6 @@ void SlalomModel::updateX(const int k) {
     arma::uvec setMinus = arma::join_cols(set1, set2);
     arma::uvec idx = arma::find(this->doUpdate(setMinus) == 1);
     setMinus = setMinus(idx);
-    this->setMinus = setMinus;
 
     arma::vec SW_sigma;
     arma::vec SW2_sigma;
@@ -430,16 +409,12 @@ void SlalomModel::updateX(const int k) {
 void SlalomModel::updateEpsilon(void) {
     // update Epsilon (vectorised) - noise parameters
     arma::uvec update_cols = arma::find(this->doUpdate == 1);
-    this->tmp1 = this->W_gamma0.cols(update_cols);
     arma::mat SW_sigma = (this->W_gamma0.cols(update_cols) %
                               this->W_E1.cols(update_cols));  // elementwise mult.; GxK mat
-    this->tmp2 = SW_sigma;
     arma::mat SW2_sigma = (this->W_gamma0.cols(update_cols) %
                                this->W_E2diag.cols(update_cols));  // elementwise mult.; GxK mat
-    this->tmp3 = SW2_sigma;
     arma::mat muSTmuS = (this->X_E1.cols(update_cols).t() *
         this->X_E1.cols(update_cols));     // KxK matrix
-    this->tmp4 = muSTmuS;
     arma::mat newmat = this->Z_E1.t() * this->X_E1.cols(update_cols);
     arma::vec t1 = arma::sum(SW_sigma % newmat, 1);  // K length vec
     arma::vec t2 = arma::sum(SW2_sigma % arma::repmat(muSTmuS.diag().t() +
@@ -539,20 +514,6 @@ RCPP_MODULE(SlalomModel) {
         .field("termNames", &SlalomModel::termNames)
         .field("cellNames", &SlalomModel::cellNames)
         .field("geneNames", &SlalomModel::geneNames)
-        // for testing
-        .field("SmTSk", &SlalomModel::SmTSk)
-        .field("setMinus", &SlalomModel::setMinus)
-        .field("alphaSm", &SlalomModel::alphaSm)
-        .field("tmp1", &SlalomModel::tmp1)
-        .field("tmp2", &SlalomModel::tmp2)
-        .field("tmp3", &SlalomModel::tmp3)
-        .field("tmp4", &SlalomModel::tmp4)
-        .field("tmp5", &SlalomModel::tmp5)
-        .field("tmpvec1", &SlalomModel::tmpvec1)
-        .field("tmpvec2", &SlalomModel::tmpvec2)
-        .field("tmpvec3", &SlalomModel::tmpvec3)
-        .field("tmpvec4", &SlalomModel::tmpvec4)
-        .field("tmpvec5", &SlalomModel::tmpvec5)
         // methods
         .method("train", &SlalomModel::train , "Train the SlalomModel")
         .method("update", &SlalomModel::update , "Update the SlalomModel")

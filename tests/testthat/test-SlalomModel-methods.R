@@ -32,11 +32,13 @@ test_that("SlalomModel initialises", {
 test_that("SlalomModel trains", {
     gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
     genesets <- GSEABase::getGmt(gmtfile)
-    # for (i in seq_along(genesets)) {
-    #     GSEABase::setName(genesets[[i]]) <- gsub("REACTOME_", "",
-    #                                              GSEABase::setName(genesets[[i]]))
-    #     GSEABase::setName(genesets[[i]]) <- strtrim(GSEABase::setName(genesets[[i]]), 30)
-    # }
+    genesets <- GSEABase::GeneSetCollection(
+        lapply(genesets, function(x) {
+            GSEABase::setName(x) <- gsub("REACTOME_", "", GSEABase::setName(x))
+            GSEABase::setName(x) <- strtrim(GSEABase::setName(x), 30)
+            x
+            })
+    )
     ###########################################################################
     ## simulated data
     rdsfile <- system.file("extdata", "sim_N_20_v3.rds", package = "slalom")
@@ -45,7 +47,7 @@ test_that("SlalomModel trains", {
         assays = list(logcounts = sim[["init"]][["Y"]])
     )
     rownames(sce) <- unique(unlist(GSEABase::geneIds(genesets[1:20])))[1:500]
-
+    colnames(sce) <- 1:ncol(sce)
     ## test R and Py results with exactly the same initialisation
     m <- newSlalomModel(sce, genesets[1:23], n_hidden = 1, min_genes = 1)
     ## initialise this model
@@ -117,6 +119,7 @@ test_that("SlalomModel trains", {
     m <- trainSlalom(m, minIterations = 400, nIterations = 3000, shuffle = TRUE,
                      pretrain = TRUE, seed = 222)
     expect_true(m$converged)
+    expect_that(topTerms(m), is_a("data.frame"))
 
     # test without using same initialisation as Python code
     mm <- newSlalomModel(sce, genesets[1:23], n_hidden = 1, min_genes = 1)
@@ -129,6 +132,21 @@ test_that("SlalomModel trains", {
     Zm <- m$X_E1 %*% t(m$W_E1)
     Zmm <- mm$X_E1 %*% t(mm$W_E1)
     expect_true(cor(c(Zm), c(Zmm)) > 0.9999)
+
+    ## check that we can add results to an SingleCellExperiment object
+    sce <- addResultsToSingleCellExperiment(sce, mm)
+    expect_that(sce, is_a("SingleCellExperiment"))
+
+    ## check that topTerms works
+    expect_that(topTerms(mm), is_a("data.frame"))
+
+    ## check plotting
+    expect_that(plotTerms(mm), is_a("ggplot"))
+    expect_that(plotTerms(mm, order_terms = FALSE), is_a("ggplot"))
+    expect_that(plotRelevance(mm)[[1]], is_a("ggplot"))
+    expect_that(plotRelevance(mm)[[2]], is_a("ggplot"))
+    expect_that(plotLoadings(mm, 2), is_a("ggplot"))
+    expect_that(plotLoadings(mm, 20), is_a("ggplot"))
 
     # genes_corr <- rep(NA, ncol(Zm))
     # for (i in 1:ncol(Zm))

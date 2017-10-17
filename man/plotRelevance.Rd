@@ -25,7 +25,8 @@ plotted? Default is \code{FALSE}}
 plotted? Default is \code{FALSE}}
 }
 \value{
-a ggplot object
+invisibly returns a list containing the two ggplot objects that make
+up the plot
 }
 \description{
 Plot results of a Slalom model

@@ -1,6 +1,5 @@
 #### plotting functions for slalom models
 
-
 #' Plot results of a Slalom model
 #'
 #' @param object an object of class \code{Rcpp_SlalomModel}
@@ -14,77 +13,8 @@
 #' @param unannotated_sparse logical(1), should sparse unannotated factors be
 #' plotted? Default is \code{FALSE}
 #'
-#' @return data.frame with factors ordered by relevance, showing \code{term}
-#' (term names), \code{relevance}, \code{type} (factor type: known, annotated
-#' or unannotated), \code{n_prior} (number of genes annotated to the gene
-#' set/factor), \code{n_gain} (number of genes added/switched on for the
-#' factor), \code{n_loss} (number of genes turned off for the factor).
-#'
-#' @export
-#' @examples
-#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
-#' genesets <- GSEABase::getGmt(gmtfile)
-#' data("mesc")
-#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
-#' model <- initSlalom(model)
-#' model <- trainSlalom(model, nIterations = 10)
-#' topTerms(model)
-topTerms <- function(
-    object, n_active = 20, mad_filter = 0.4, annotated = TRUE,
-    unannotated_dense = FALSE, unannotated_sparse = FALSE) {
-    if (!methods::is(object, "Rcpp_SlalomModel"))
-        stop("object must be of class Rcpp_SlalomModel")
-
-    i_use <- rep(FALSE, object$K)
-    if (unannotated_sparse)
-        i_use[object$iUnannotatedSparse] <- TRUE
-    if (unannotated_dense)
-        i_use[object$iUnannotatedDense] <- TRUE
-    if (annotated)
-        i_use[seq(from = object$nKnown + object$nHidden + 1, to = object$K,
-                  by = 1)] <- TRUE
-
-    i_prior <- (object$Pi_E1[, i_use] > 0.5)
-    i_posterior <- (object$W_gamma0[, i_use] > 0.5)
-    relevance <- (1.0 / object$alpha_E1[i_use])
-    terms <- object$termNames[i_use]
-    factor_type <- c(rep("known", object$nKnown),
-                     rep("unannotated", object$nHidden),
-                     rep("annotated", object$K - object$nHidden - object$nKnown))
-    factor_type <- factor_type[i_use]
-    MAD <- apply(object$X_E1[, i_use], 2, stats::mad)
-    R <- (MAD > mad_filter) * relevance
-
-    n_active <- min(sum(R > 0), n_active)
-
-    i_active <- order(R, decreasing = TRUE)[1:n_active]
-
-    df <- data.frame(
-        term = terms[i_active],
-        relevance = R[i_active],
-        type = factor_type[i_active],
-        n_prior = colSums(i_prior)[i_active],
-        n_gain = colSums(i_posterior & !i_prior)[i_active],
-        n_loss = colSums(!i_posterior & i_prior)[i_active]
-    )
-    df
-}
-
-
-#' Plot results of a Slalom model
-#'
-#' @param object an object of class \code{Rcpp_SlalomModel}
-#' @param n_active number of terms (factors) to be plotted (default is 20)
-#' @param mad_filter numeric(1), filter factors by this mean absolute deviation
-#' to exclude outliers. For large datasets this can be set to 0
-#' @param annotated logical(1), should annotated factors be plotted? Default is
-#' \code{TRUE}
-#' @param unannotated_dense logical(1), should dense unannotated factors be
-#' plotted? Default is \code{FALSE}
-#' @param unannotated_sparse logical(1), should sparse unannotated factors be
-#' plotted? Default is \code{FALSE}
-#'
-#' @return a ggplot object
+#' @return invisibly returns a list containing the two ggplot objects that make
+#' up the plot
 #'
 #' @import ggplot2
 #' @import grid
@@ -131,7 +61,7 @@ plotRelevance <- function(
         scale_colour_manual(name = "Gene set change", guide = "legend",
                             values = c('firebrick' = 'firebrick',
                                        'dodgerblue' = 'dodgerblue'),
-                            labels = c('gain','loss')) +
+                            labels = c('loss','gain')) +
         guides(size = FALSE) +
         xlab("Gene set augmentation") +
         theme_classic() + theme(legend.justification = c(1,0),
@@ -142,6 +72,7 @@ plotRelevance <- function(
 
     grid::grid.newpage()
     grid::grid.draw(cbind(ggplotGrob(p1), ggplotGrob(p2), size = "last"))
+    invisible(list(p1, p2))
 }
 
 

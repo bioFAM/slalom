@@ -382,6 +382,8 @@ trainSlalom <- function(
     object, nIterations = 5000, minIterations = 700, tolerance = 1e-08,
     forceIterations = FALSE, shuffle = TRUE, pretrain = TRUE, verbose = TRUE,
     seed = NULL, drop_factors = TRUE) {
+    if (!methods::is(object, "Rcpp_SlalomModel"))
+        stop("object must be of class Rcpp_SlalomModel")
     ## define training parameters in object
     object$dropFactors <- drop_factors  ## drop factors if deemed to be off
     object$tolerance <- tolerance
@@ -568,4 +570,179 @@ setValidity("Rcpp_SlalomModel", function(object) {
 
     if (valid) TRUE else msg
 })
+
+
+################################################################################
+### Explore results
+
+
+#' Show results of a Slalom model
+#'
+#' @param object an object of class \code{Rcpp_SlalomModel}
+#' @param n_active number of terms (factors) to be plotted (default is 20)
+#' @param mad_filter numeric(1), filter factors by this mean absolute deviation
+#' to exclude outliers. For large datasets this can be set to 0
+#' @param annotated logical(1), should annotated factors be plotted? Default is
+#' \code{TRUE}
+#' @param unannotated_dense logical(1), should dense unannotated factors be
+#' plotted? Default is \code{FALSE}
+#' @param unannotated_sparse logical(1), should sparse unannotated factors be
+#' plotted? Default is \code{FALSE}
+#'
+#' @return data.frame with factors ordered by relevance, showing \code{term}
+#' (term names), \code{relevance}, \code{type} (factor type: known, annotated
+#' or unannotated), \code{n_prior} (number of genes annotated to the gene
+#' set/factor), \code{n_gain} (number of genes added/switched on for the
+#' factor), \code{n_loss} (number of genes turned off for the factor).
+#'
+#' @export
+#' @examples
+#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+#' genesets <- GSEABase::getGmt(gmtfile)
+#' data("mesc")
+#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+#' model <- initSlalom(model)
+#' model <- trainSlalom(model, nIterations = 10)
+#' topTerms(model)
+topTerms <- function(
+    object, n_active = 20, mad_filter = 0.4, annotated = TRUE,
+    unannotated_dense = FALSE, unannotated_sparse = FALSE) {
+    if (!methods::is(object, "Rcpp_SlalomModel"))
+        stop("object must be of class Rcpp_SlalomModel")
+
+    i_use <- rep(FALSE, object$K)
+    if (unannotated_sparse)
+        i_use[object$iUnannotatedSparse] <- TRUE
+    if (unannotated_dense)
+        i_use[object$iUnannotatedDense] <- TRUE
+    if (annotated)
+        i_use[seq(from = object$nKnown + object$nHidden + 1, to = object$K,
+                  by = 1)] <- TRUE
+
+    i_prior <- (object$Pi_E1[, i_use] > 0.5)
+    i_posterior <- (object$W_gamma0[, i_use] > 0.5)
+    relevance <- (1.0 / object$alpha_E1[i_use])
+    terms <- object$termNames[i_use]
+    factor_type <- c(rep("known", object$nKnown),
+                     rep("unannotated", object$nHidden),
+                     rep("annotated", object$K - object$nHidden - object$nKnown))
+    factor_type <- factor_type[i_use]
+    MAD <- apply(object$X_E1[, i_use], 2, stats::mad)
+    R <- (MAD > mad_filter) * relevance
+
+    n_active <- min(sum(R > 0), n_active)
+
+    i_active <- order(R, decreasing = TRUE)[1:n_active]
+
+    df <- data.frame(
+        term = terms[i_active],
+        relevance = R[i_active],
+        type = factor_type[i_active],
+        n_prior = colSums(i_prior)[i_active],
+        n_gain = colSums(i_posterior & !i_prior)[i_active],
+        n_loss = colSums(!i_posterior & i_prior)[i_active]
+    )
+    df
+}
+
+
+#' Add results to SingleCellExperiment object
+#'
+#' @param sce_object an object of class
+#' \code{\link[SingleCellExperiment]{SingleCellExperiment}}
+#' @param slalom_object an object of class \code{Rcpp_SlalomModel}
+#' @param n_active number of terms (factors) to be added (default is 20)
+#' @param mad_filter numeric(1), filter factors by this mean absolute deviation
+#' to ensure variability in the factor states. For large datasets this can be
+#' set to 0
+#' @param annotated logical(1), should annotated factors be included? Default is
+#' \code{TRUE}
+#' @param unannotated_dense logical(1), should dense unannotated factors be
+#' included? Default is \code{FALSE}
+#' @param unannotated_sparse logical(1), should sparse unannotated factors be
+#' included? Default is \code{FALSE}
+#' @param add_loadings logical(1), should gene/feature loadings be added to
+#' the \code{rowData} of the object?
+#' @param dimred character(1), name of the reduced-dimension slot to save the
+#' factor states to. Default is \code{"slalom"}
+#' @param check_convergence logical(1), check that model has converged before
+#' adding \code{slalom} results. If \code{TRUE} and model has not converged it
+#' throws an error.
+#'
+#' @return a \code{\link[SingleCellExperiment]{SingleCellExperiment}} object
+#' with factor states (X) in a reduced-dimension slot, and gene loadings for
+#' factors added to \code{rowData}.
+#'
+#' @importFrom SingleCellExperiment rowData
+#' @importFrom SingleCellExperiment colData
+#' @export
+#'
+#' @examples
+#' gmtfile <- system.file("extdata", "reactome_subset.gmt", package = "slalom")
+#' genesets <- GSEABase::getGmt(gmtfile)
+#' data("mesc")
+#' model <- newSlalomModel(mesc, genesets, n_hidden = 5, min_genes = 10)
+#' model <- initSlalom(model)
+#' model <- trainSlalom(model, nIterations = 10)
+#' mesc <- addResultsToSingleCellExperiment(mesc, model,
+#' check_convergence = FALSE)
+addResultsToSingleCellExperiment <- function(
+    sce_object, slalom_object,  n_active = 20, mad_filter = 0.4,
+    annotated = TRUE, unannotated_dense = FALSE, unannotated_sparse = FALSE,
+    add_loadings = TRUE, dimred = "slalom", check_convergence = TRUE) {
+    if (!methods::is(sce_object, "SingleCellExperiment"))
+        stop("sce_object must be of class SingleCellExperiment")
+    if (!methods::is(slalom_object, "Rcpp_SlalomModel"))
+        stop("slalom_object must be of class Rcpp_SlalomModel")
+    if (!slalom_object$converged && check_convergence)
+        stop("slalom_object model has not converged; results may not be trustworthy.")
+    if (!identical(colnames(sce_object), slalom_object$cellNames))
+        stop("cellNames (i.e. colnames) do not match between sce_object and slalom_object.")
+    if (add_loadings && !any(slalom_object$geneNames %in% rownames(sce_object)))
+        stop("add_loadings is TRUE, but no genes/features are shared between slalom_object and sce_object.")
+    ## select factors to use
+    i_use <- rep(FALSE, slalom_object$K)
+    if (unannotated_sparse)
+        i_use[slalom_object$iUnannotatedSparse] <- TRUE
+    if (unannotated_dense)
+        i_use[slalom_object$iUnannotatedDense] <- TRUE
+    if (annotated)
+        i_use[seq(from = slalom_object$nKnown + slalom_object$nHidden + 1,
+                  to = slalom_object$K, by = 1)] <- TRUE
+    ## select factors by relevance
+    relevance <- (1.0 / slalom_object$alpha_E1[i_use])
+    terms <- slalom_object$termNames[i_use]
+    X <- slalom_object$X_E1[, i_use]
+    W <- slalom_object$X_E1[, i_use]
+    MAD <- apply(X, 2, stats::mad)
+    R <- (MAD > mad_filter) * relevance
+    n_active <- min(sum(R > 0), n_active)
+    i_active <- order(R, decreasing = TRUE)[1:n_active]
+    ## add factor states
+    X_to_add <- X[, i_active, drop = FALSE]
+    colnames(X_to_add) <- terms[i_active]
+    reducedDim(sce_object, dimred) <- X_to_add
+    ## add loadings if requested
+    if (add_loadings) {
+        gene_labels <- slalom_object$geneNames
+        shared_genes <- intersect(rownames(sce_object), gene_labels)
+        i_sce <- (rownames(sce_object) %in% shared_genes)
+        mm_slalom <- match(gene_labels, rownames(sce_object)[i_sce])
+        W <- slalom_object$W_E1[, i_active, drop = FALSE]
+        Z <- slalom_object$W_gamma0[, i_active, drop = FALSE]
+        loading <- W * Z
+        new_rdata <- matrix(NA, nrow = nrow(sce_object), ncol = n_active)
+        new_rdata[i_sce,] <- loading[mm_slalom,]
+        colnames(new_rdata) <- terms[i_active]
+        rowData(sce_object) <- cbind(rowData(sce_object), new_rdata)
+    }
+    sce_object
+}
+
+
+
+
+
+
+
 

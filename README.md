@@ -30,7 +30,7 @@ The source code for the R package can be found in the [R_package folder](https:/
 ## Python implementation
 ### Installation requirements python implementation:
 
-slalom requires Python >= 2.7 or newer with
+slalom requires Python 2.7 or newer with
   - scipy, h5py, numpy, matplotlib, scikit-learn, re
   
 slalom can be installed via pip with `pip install slalom`.

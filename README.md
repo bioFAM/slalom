@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/bioFAM/slalom.svg?branch=master)](https://travis-ci.org/bioFAM/slalom)   [![Documentation Status](https://readthedocs.org/projects/slalom/badge/?version=latest)](http://f-scLVM.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://travis-ci.org/bioFAM/slalom.svg?branch=master)](https://travis-ci.org/bioFAM/slalom)   [![Documentation Status](https://readthedocs.org/projects/f-scLVM/badge/?version=latest)](http://f-scLVM.readthedocs.io/en/latest/?badge=latest)
 
 # The factorial single-cell latent variable model (slalom)
 

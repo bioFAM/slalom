@@ -33,7 +33,7 @@ script:
 - python setup.py sdist
 - pip install dist/`ls dist | grep -i -E '\.(gz)$' | head -1`
 - pushd /
-- python -c "import fscLVM; print(fscLVM.__version__)"
+- python -c "import slalom; print(slalom.__version__)"
 - popd
 notifications:
   email: false
@@ -47,4 +47,4 @@ deploy:
     secure: buXXT5VTU6j0ArBCXLvkLAfEP/qIppuc4SRXQTSf6nkxok5fwmVmvP9CSJQrpgpJG6soL6rZhcowACjboN/YZBvlYLR9KoBu371dqL1AvIw2XFRNUa7EDOCdQpYlt3NviPcVnqF5ZEIfULxTGDlKnhRBU1olZCM/JJCexGcT4NSPGuZLXjMsjFd3uR8WqgvpCfJPXZzSaOqVIslnkIb0ZvTB9Z5sYMDe8xgOXnO5C1+aMeyIQnthxmXPXEQUtntg8YCUenuPfyuUf2gNXrx1W8uqIsmX3ivhR2N5i+s5JniBiTqenfVUrvgDiOolRF7vPA8jU+6ZCZCy0hTdPI2QuAChkb0Uw9CdcPZyL1hS61A3KxJ3AKRAkqCiBlbSH2v8gqjcVGtGL4CfbS9Im0BoUoGvhWqLREzk5Mjnw6Ed2w8QhmwU2cTEY8qVsmZpz3hci1YIHVHEW6W0moV7rj3uW/dfceTbWtA4+yh5IOOu0CIVkgjKHL+3QBSDynqL+EuJQhafn7tI+ow9R3msEVYMway7d1XcJAabIv/0SVQu97NpHYd7KoD2kk5HdyvJPsIu4ugUi0zcVe5EnxG7qVqEAdvcG6MyMRkRLXq/8vjqg7BDVlZeORc/jkTZFsc/6qH/eYX3G/MoIJTDv609SM4mb8pyVbt0hAeJrQqPE8SyNvM=
   on:
     distributions: sdist bdist_wheel
-    repo: PMBio/f-scLVM
+    repo: bioFAM/slalom

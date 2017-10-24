@@ -1,4 +1,4 @@
-# Copyright(c) 2016, The f-scLVM developers (Florian Buettner, Oliver Stegle)
+# Copyright(c) 2016, The slalom developers (Florian Buettner, Oliver Stegle)
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
 #you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ import pylab as plt
 import os
 import brewer2mpl
 import sys
-#from fscLVM.utils import *
-import fscLVM
+#from slalom.utils import *
+import slalom
 import pandas as pd
 from .bayesnet.vbfa import *
 
@@ -44,10 +44,10 @@ def secdev(x):
     
     
 def saveFA(FA, out_name=None, saveF=False):
-    """Saves output of fscLVM.CSparseFA object as hdf5 file
+    """Saves output of slalom.CSparseFA object as hdf5 file
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
+        FA                 (:class:`slalom.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
         out_name                         (str): Name of hdf file to save the model to. Default is `None' for which a filename is created automatically.
         saveF                           (bool): Boolean variable indicating whether to save the imputed expression space.
     """    
@@ -70,10 +70,10 @@ def saveFA(FA, out_name=None, saveF=False):
 
 
 def dumpFA(FA):
-    """Dumps output of fscLVM.CSparseFA object in a dictionary
+    """Dumps output of slalom.CSparseFA object in a dictionary
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
+        FA                 (:class:`slalom.CSparseFA`): Factor analysis object, ususally generated using `initFA` function
                                                                       
 
     Returns:
@@ -107,7 +107,7 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
     """Scatter plot of 2 selected factors
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
+        FA                 (:class:`slalom.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         terms                    (list): List of strings containing names of factors to be plotted; if a factor analysis object is provided 
                                         the corresponding factors are automatically extracted, otherwise this argument will only 
                                         be used to label the axes
@@ -128,7 +128,7 @@ def plotFactors(FA=None, terms=None,X = None,  lab=[],  cols=None, isCont=True,m
               'text.usetex': False}
 
     if FA is None and X is None:
-        raise Exception('Provide either a fscLVM.SCparseFA object or Factors X.')
+        raise Exception('Provide either a slalom.SCparseFA object or Factors X.')
 
     if FA is not None:
         S = FA.getX(terms)
@@ -175,7 +175,7 @@ def plotTerms(FA=None, S=None, alpha=None, terms=None, madFilter=.4):
     """Plot terms and their respective relevance
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
+        FA                 (:class:`slalom.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         madFilter          (float)           : Filter factors by this mean absolute deviation to exclude outliers. 
                                                 For larger datasets this can be set to 0.
     """    
@@ -205,7 +205,7 @@ def plotLoadings(FA, term, n_genes = 10):
     """Plot highest loadings of a factor
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
+        FA                 (:class:`slalom.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         term                                  (str): Name of facotr for which loadings are to be plotted
         n_genes                                 (int): Number of loadings to be shown
 
@@ -244,13 +244,13 @@ def plotLoadings(FA, term, n_genes = 10):
 
     
 def plotRelevance(FA,Nactive=20,stacked=True, madFilter=0.4,annotated=True,unannotated=False,unannotated_sparse=False):
-    """Plot results of f-scLVM
+    """Plot results of slalom
 
     Identified factors and corresponding gene set size ordered by relevance (white = low relevance; black = high relevance). 
     Top panel: Gene set augmentation, showing the number of genes added (red) and removed (blue) by the model for each factor.
 
     Args:
-        FA                 (:class:`fscLVM.CSparseFA`): Factor analysis object, usually generated using `initFA` function
+        FA                 (:class:`slalom.CSparseFA`): Factor analysis object, usually generated using `initFA` function
         Nactive                                  (int): Numer of terms to be plotted
         stacked                                 (bool): Boolean variable indicating whether bars should be stacked
         db                                      (str): Name of database used, either 'MSigDB' or 'REACTOME'
@@ -449,9 +449,9 @@ def getIlabel(order, Y, terms, pi,init_factors=None):
         
 
 def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=None):
-    """Pre-train the f-scLVM factor analysis model.
+    """Pre-train the slalom factor analysis model.
 
-    Helper function to pre-train the f-scLVM factor analysis model to achieve 
+    Helper function to pre-train the slalom factor analysis model to achieve 
     faster convergence and obtain an initial update order. Called by `initFA`.
 
     Args:
@@ -498,7 +498,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
     #initType = 'pcaRand'
     terms0=terms
     pi0=pi.copy()
-    FA0 = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,
+    FA0 = slalom.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,nIterations=50,
                             permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FA0.init(**init)
     if nFix==None:
@@ -526,10 +526,11 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
     pi = pi0[:,mRange]
     terms = terms0[mRange]     
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
-    FA = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
+    FA = slalom.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
         nIterations=50,permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FA.shuffle=True
     FA.nScale = 30
+
     FA.init(**init) 
     for j in range(50):
         FA.update()      
@@ -539,7 +540,7 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
     pi = pi0[:,mRangeRev]
     terms = terms0[mRangeRev]
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise}
-    FArev = fscLVM.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
+    FArev = slalom.CSparseFA(components=K,sigmaOff=sigmaOff,sigmaOn=SP.ones(pi.shape[1])*1.0,sparsity=sparsity,
         nIterations=50,permutation_move=False,priors=priors,initType='pcaRand', learnPi=learnPi)
     FArev.shuffle=True
     FArev.nScale = 30
@@ -560,16 +561,16 @@ def preTrain(Y, terms, P_I, noise='gauss', nFix=None, priors=None, covariates=No
 
 
 def load_hdf5(dFile, anno='MSigDB'):
-    """Load input file for f-scLVM
+    """Load input file for slalom
 
-    Loads an hdf file and extracts all the inputs required by f-scLVM 
+    Loads an hdf file and extracts all the inputs required by slalom 
 
     Args:
         dFile (str): String contaning the file name of the hdf file with the input data.
 
 
     Returns:
-        An dictionary containing all the inputs required by f-scLVM.
+        An dictionary containing all the inputs required by slalom.
     """    
 
     dataFile = h5py.File(dFile, 'r')
@@ -588,9 +589,9 @@ def load_hdf5(dFile, anno='MSigDB'):
 
 
 # def load_txt_(dataFile,annoFile, niceTerms=True,annoDB='MSigDB',dataFile_delimiter=',', verbose=True):  
-#     """Load input file for f-scLVM from txt files.
+#     """Load input file for slalom from txt files.
 
-#     Loads a txt files and extracts all the inputs required by f-scLVM 
+#     Loads a txt files and extracts all the inputs required by slalom 
 
 #     Args:
 #         dataFile (str): String containing the file name of the text file with the expression levels
@@ -604,7 +605,7 @@ def load_hdf5(dFile, anno='MSigDB'):
 
 
 #     Returns:
-#         An dictionary containing all the inputs required by f-scLVM.
+#         An dictionary containing all the inputs required by slalom.
 #     """    
 
 #     if not os.path.exists(annoFile):
@@ -673,9 +674,9 @@ def load_hdf5(dFile, anno='MSigDB'):
 #     return data_out
 
 def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimiter=',', verbose=True):  
-    """Load input file for f-scLVM from txt files.
+    """Load input file for slalom from txt files.
 
-    Loads an txt files and extracts all the inputs required by f-scLVM 
+    Loads an txt files and extracts all the inputs required by slalom 
 
     Args:
         dataFile (str): Strong containing the file name of the text file with the expression levels
@@ -689,7 +690,7 @@ def load_txt(dataFile,annoFiles, niceTerms=True,annoDBs='MSigDB',dataFile_delimi
 
 
     Returns:
-        An dictionary containing all the inputs required by f-scLVM.
+        An dictionary containing all the inputs required by slalom.
     """    
     if type(annoFiles)==dtype('str'):
         annoFiles = [annoFiles]
@@ -794,7 +795,7 @@ def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGe
     init={'init_data':CGauss(Y),'Pi':pi,'terms':terms, 'noise':noise, 'init_factors':init_factors}
     if not gene_ids is None:
         gene_ids = SP.array(gene_ids)
-    FA = fscLVM.CSparseFA(components=pi.shape[1], idx_genes = None, gene_ids = gene_ids)   
+    FA = slalom.CSparseFA(components=pi.shape[1], idx_genes = None, gene_ids = gene_ids)   
     FA.saveInit=True
     FA.init(**init)  
 
@@ -805,7 +806,7 @@ def initFromPi(Y, terms, pi, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGe
 
 def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=True, FPR=0.99, FNR=0.001, \
             noise='gauss', minGenes=20, do_preTrain=True, nFix=None, priors=None, covariates=None, dropFactors=True, learnPi=False):
-    """Initialise the f-scLVM factor analysis model.
+    """Initialise the slalom factor analysis model.
 
     Required 3 inputs are first, a gene expression matrix `Y` containing normalised count values of `N` cells and `G` 
     variable genes in log-space, second a vector `terms` contaning the names of all annotated gene set (correspondig to annotated factors) 
@@ -850,7 +851,7 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
 
 
     Returns:
-        A :class:`fscLVM.CSparseFA` instance.
+        A :class:`slalom.CSparseFA` instance.
     """
 
     
@@ -956,9 +957,8 @@ def initFA(Y, terms, I, gene_ids=None, nHidden=3, nHiddenSparse = 0,pruneGenes=T
     if not gene_ids is None:
         gene_ids = SP.array(gene_ids)
 
-    FA = fscLVM.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids, priors=priors, learnPi=learnPi)   
+    FA = slalom.CSparseFA(components=num_terms, idx_genes = idx_genes, gene_ids = gene_ids, priors=priors, learnPi=learnPi)   
     FA.saveInit=False
-
     FA.init(**init)  
 
     return FA   

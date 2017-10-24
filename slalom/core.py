@@ -1,4 +1,4 @@
-# Copyright(c) 2016, The f-scLVM developers (Florian Buettner, Oliver Stegle)
+	# Copyright(c) 2016-2017, The slalom developers (Florian Buettner, Oliver Stegle)
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
 #you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-# fscLVM
+# slalom
 # factorial single cell latent variable model
 # this class implements  a  variational inference procedure for a sparse model with different observation noise models.
 
@@ -99,7 +99,7 @@ class CSparseFA(AExpressionModule):
         dp = AExpressionModule.getDefaultParameters(self)
         return dp
 
-    def getName(self,base_name='fscLVM'):
+    def getName(self,base_name='slalom'):
         """return a name summarising the  main parameters"""
 
         name = "%s_unannotated_%s_unannotated-sparse_%s_it_%s" % (base_name,self.nLatent,self.nLatentSparse, self.iterationCount)
@@ -311,7 +311,6 @@ class CSparseFA(AExpressionModule):
             self.update()
             self.iterationCount+=1
 
-
             #Fnew = self.calcBound()
             #print(Fnew-Fold)
             #Fold = Fnew            
@@ -358,8 +357,7 @@ class CSparseFA(AExpressionModule):
             
             #keep diagSigmaS
             self.Eps.diagSigmaS[m] = SP.sum(self.S.diagSigmaS[:,m])
-
-
+    
 
         else:
             SW2_sigma = (self.W.C[:, m,0]*(self.W.E2diag[:, m]))*self.Eps.E1 
@@ -404,7 +402,7 @@ class CSparseFA(AExpressionModule):
         SmTSk = SP.sum( SP.tile(self.S.E1[:,m:m+1],(1, Muse-1))*self.S.E1[:,setMinus], 0)
         SmTSm = SP.dot(self.S.E1[:,m].transpose(),self.S.E1[:,m]) + self.S.diagSigmaS[:,m].sum()
 
-        b = SP.dot( (self.W.C[:, setMinus,0]*self.W.E1[:, setMinus]),(SmTSk.transpose()))                         
+        b = SP.dot((self.W.C[:, setMinus,0]*self.W.E1[:, setMinus]),(SmTSk.transpose()))                         
         diff = SP.dot(self.S.E1[:,m].transpose(),YmeanX) - b
         
         SmTSmSig = SmTSm + sigma2Sigmaw
@@ -414,6 +412,7 @@ class CSparseFA(AExpressionModule):
         u_qm = logPi + 0.5*SP.log(sigma2Sigmaw) - 0.5*SP.log(SmTSmSig) + (0.5*self.Eps.E1)*((diff**2)/SmTSmSig)
         with SP.errstate(over='ignore'):
             self.W.C[:, m,0] = 1./(1+SP.exp(-u_qm))
+
 
         self.W.C[:,m,1] = 1-self.W.C[:,m,0]
         self.W.E1[:, m] = (diff/SmTSmSig)                                #q(w_qm | s_qm=1), q=1,...,Q
@@ -455,6 +454,8 @@ class CSparseFA(AExpressionModule):
         t2 = SP.sum(SW2_sigma*SP.tile(SP.diag(muSTmuS).T + self.Eps.diagSigmaS[self.doUpdate==1],(self._D,1)), 1) 
         t3 = SP.sum( SP.dot(SW_sigma,muSTmuS0)*SW_sigma, 1)
         #self.Eps.E1 = 1./((self.Eps.pb+0.5*(self.ZZ  + (-2*t1 + t2 + t3)))/(0.5*self._N+self.Eps.pa))
+
+
         self.Eps.E1 = 1./((0.5*(self.ZZ  + (-2*t1 + t2 + t3)))/(0.5*self._N))
 
         #pdb.set_trace()

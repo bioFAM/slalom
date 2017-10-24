@@ -4,7 +4,7 @@ from pkg_resources import get_distribution as _get_distribution
 from pkg_resources import DistributionNotFound as _DistributionNotFound
 
 try:
-    __version__ = _get_distribution('fscLVM').version
+    __version__ = _get_distribution('slalom').version
 except _DistributionNotFound:
     __version__ = 'unknown'
 

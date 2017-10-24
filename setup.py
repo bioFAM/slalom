@@ -19,12 +19,12 @@ def setup_package():
    tests_require = install_requires
 
    metadata = dict(
-       name='fscLVM',
-       version='1.0.0.dev10',
-       maintainer="f-scLVM Developers",
+       name='slalom',
+       version='1.0.0.dev11',
+       maintainer="slalom Developers",
        maintainer_email="fbuettner.phys@gmail.com",
        license="Apache 2.0",
-       url='http://pmbio.github.io/f-scLVM/',
+       url='http://bioFAM.github.io/slalom/',
        packages=find_packages(),
        zip_safe=True,
        install_requires=install_requires,

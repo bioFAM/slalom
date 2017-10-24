@@ -11,7 +11,7 @@ Observed heterogeneity in single-cell profiling data is multi-factorial. slalom 
 slalom builds on sparse factor analysis models, for which this implementation provides efficient approximate inference using Variational Bayes, allowing the application of slalom to very large datasets containing up to 100,000 cells.
 
 ## Implementation
-We provide 2 implementation of the slalom model: an R/C++ implementation that is (available on Bioconductor)[https://bioconductor.org/packages/devel/bioc/html/slalom.html] and a python implementation. Both implemetations implement the model described in the accompanying publication [1]. 
+We provide 2 implementation of the slalom model: an R/C++ implementation that is [available on Bioconductor](https://bioconductor.org/packages/devel/bioc/html/slalom.html) and a python implementation. Both implemetations implement the model described in the accompanying publication [1]. 
 
 Software by Florian Buettner, Davis McCarthy and Oliver Stegle. 
 
@@ -24,13 +24,13 @@ to install the package is to use the usual Bioconductor method:
 source("https://bioconductor.org/biocLite.R")
 biocLite("slalom")
 ```
-The source code for the R package can be found in the (R_package folder)[https://github.com/bioFAM/slalom/blob/master/R_package] of this repository.
+The source code for the R package can be found in the [R_package folder](https://github.com/bioFAM/slalom/blob/master/R_package) of this repository.
 
 
 ## Python implementation
 ### Installation requirements python implementation:
 
-slalom requires Python 2.7 or newer with
+slalom requires Python >= 2.7 or newer with
   - scipy, h5py, numpy, matplotlib, scikit-learn, re
   
 slalom can be installed via pip with `pip install slalom`.

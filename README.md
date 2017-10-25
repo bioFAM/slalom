@@ -27,7 +27,7 @@ biocLite("slalom")
 ```
 The source code for the R package can be found in the [R_package folder](https://github.com/bioFAM/slalom/blob/master/R_package) of this repository.
 
-The **vignette** supplied with the R package provides an overview of usage of that implementation of slalom.
+The [**vignette**](https://bioconductor.org/packages/devel/bioc/vignettes/slalom/inst/doc/vignette.html) supplied with the R package provides an overview of usage of that implementation of slalom.
 
 ## Python implementation
 ### Installation requirements python implementation:

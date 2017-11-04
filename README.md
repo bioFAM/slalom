@@ -12,7 +12,7 @@ Observed heterogeneity in single-cell profiling data is multi-factorial. slalom 
 slalom builds on sparse factor analysis models, for which this implementation provides efficient approximate inference using Variational Bayes, allowing the application of slalom to very large datasets containing up to 100,000 cells.
 
 ## Implementations
-We provide two implementations of the slalom model: an R/C++ implementation that is [available on Bioconductor](https://bioconductor.org/packages/devel/bioc/html/slalom.html) and a Python implementation. Both the R and Pyhton packages  implement the model described in the accompanying publication [1]. 
+We provide two implementations of the slalom model: an R/C++ implementation that is [available on Bioconductor](http://bioconductor.org/packages/slalom) and a Python implementation. Both the R and Pyhton packages  implement the model described in the accompanying publication [1]. 
 
 Software by Florian Buettner, Davis McCarthy and Oliver Stegle. 
 

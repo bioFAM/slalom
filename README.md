@@ -48,7 +48,7 @@ Documentation of the code can be found [here](http://slalom.readthedocs.io).
 
 ## References:
 
-[1] Buettner, F.,Pratanwanich, N., McCarthy, D.J., Marioni, J., Stegle, O. Scalable latent-factor models applied to single-cell RNA-seq data separate biological drivers from confounding effects. [Submitted](http://biorxiv.org/content/early/2016/11/15/087775).
+[1] Buettner, F.,Pratanwanich, N., McCarthy, D.J., Marioni, J., Stegle, O. f-scLVM: scalable and versatile factor analysis for single-cell RNA-seq, 2017, [Genome Biology](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-017-1334-8).
 
 
 

@@ -12,7 +12,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-from sklearn.decomposition import RandomizedPCA,PCA
+from sklearn.decomposition import PCA
 import h5py
 import pdb
 import scipy as SP

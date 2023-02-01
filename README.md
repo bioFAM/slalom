@@ -3,6 +3,9 @@
 
 # The factorial single-cell latent variable model (slalom)
 
+# +++ Note that this repository is *deprecated* - please move to our [new implementation in pyro](https://github.com/MLO-lab/MuVI/)+++
+MuVi generalizes slalom to the multiview case, scales better and recovers drivers of variability more reliably, thanks to a new implementation of the sparsity-inducing prior. Paper published at AISTATS 2023, [pdf here](https://arxiv.org/abs/2204.06242?context=cs); single-view version (slalom update) is described [here](https://arxiv.org/abs/2107.03730) and published at KDD Health '21.
+
 ## What is slalom?
 slalom is a scalable modelling framework for single-cell RNA-seq data that uses gene set annotations to dissect single-cell transcriptome heterogeneity, thereby allowing identification of biological drivers of cell-to-cell variability and model confounding factors.
 
